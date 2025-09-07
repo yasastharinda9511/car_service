@@ -1,6 +1,7 @@
 package server
 
 import (
+	"car_service/config"
 	"car_service/database"
 	"car_service/dto/request"
 	"car_service/services"
@@ -50,8 +51,6 @@ func (s *APIServer) corsMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *APIServer) setupRoutes() {
-	// Apply CORS middleware
-	s.router.Use(s.corsMiddleware)
 
 	// Health check
 	s.router.HandleFunc("/health", s.healthCheck).Methods("GET")
@@ -772,7 +771,8 @@ func (s *APIServer) getInventoryStatus(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": inventory})
 }
 
-func (s *APIServer) Start(port string) error {
+func (s *APIServer) Start(port string, allowedOrigins []string) error {
 	log.Printf("Starting server on port %s", port)
-	return http.ListenAndServe(":"+port, s.router)
+	cors := config.NewCorsConfig(allowedOrigins)
+	return http.ListenAndServe(":"+port, cors.WithCORS(s.router))
 }
