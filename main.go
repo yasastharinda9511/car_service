@@ -24,5 +24,8 @@ func main() {
 	}
 
 	apiServer := server.NewAPIServer(database)
-	apiServer.Start(cfg.Port)
+	err = apiServer.Start(cfg.Port)
+	if err != nil {
+		log.Fatal("Failed to start API server:", err)
+	}
 }
