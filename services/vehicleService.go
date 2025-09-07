@@ -18,6 +18,20 @@ func NewVehicleService(db *database.Database) *VehicleService {
 	return &VehicleService{db: db}
 }
 
+func (s *VehicleService) GetAllVehicleCount() (int64, error) {
+	var count int64
+	query := `SELECT COUNT(*) FROM vehicles`
+
+	err := s.db.Db.QueryRow(query).Scan(&count)
+	if err != nil {
+		// Log the error if you have a logger
+		// log.Printf("Error getting vehicle count: %v", err)
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func (s *VehicleService) GetAllVehicles(limit, offset int) ([]entity.VehicleComplete, error) {
 	query := `
 		SELECT 
