@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # Database service
+  postgres:
+    image: postgres:15-alpine
+    container_name: car_service_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres1234}
+      POSTGRES_DB: ${DB_NAME:-cars}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/tables.sql:/docker-entrypoint-initdb.d/table_script.sql
+    networks:
+      - user_management_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Your application service
+  car_service:
+    build:
+      context: .              # Build context is project root
+      dockerfile: Dockerfile  # Dockerfile path relative to context
+    container_name: car_service_app
+    environment:
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5433
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres1234}
+      DB_NAME: ${DB_NAME:-cars}
+      DB_SSL_MODE: disable
+      SERVER_PORT: 8080
+      SERVER_HOST: 0.0.0.0
+
+      # Environment
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8085:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - car_service_network
+    volumes:
+      - ./logs:/app/logs # Optional: mount logs directory
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  car_service_network:
+    driver: bridge
