@@ -19,4 +19,5 @@ type UpdateVehicleRequest struct {
 	HSCode             *string  `json:"hs_code"`
 	InvoiceFOBJPY      *float64 `json:"invoice_fob_jpy"`
 	RegistrationNumber *string  `json:"registration_number"`
+	RecordDate         *string  `json:"record-date"`
 }

@@ -382,7 +382,7 @@ func (s *VehicleService) UpdateVehicleDetails(vehicleID int64, req *request.Upda
 	_, err := s.db.Db.Exec(query, vehicleID, req.Code, req.Make, req.Model, req.TrimLevel,
 		req.YearOfManufacture, req.Color, req.MileageKm, req.ChassisID, req.ConditionStatus,
 		req.YearOfRegistration, req.LicensePlate, req.AuctionGrade, req.AuctionPrice, req.CIFValue,
-		req.Currency, req.HSCode, req.InvoiceFOBJPY, req.RegistrationNumber)
+		req.Currency, req.HSCode, req.InvoiceFOBJPY, req.RegistrationNumber, req.RecordDate)
 	return err
 }
 
