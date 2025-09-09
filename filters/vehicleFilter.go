@@ -68,7 +68,7 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 
 	v.Search = r.URL.Query().Get("search")
 	if v.Search != "" {
-		v.QueryBuilder.AddLikeCondition("(v.make || ' ' || v.model || ' ' || v.chassis_id || )", v.Search)
+		v.QueryBuilder.AddLikeCondition("(v.make || ' ' || v.model || ' ' || v.chassis_id || ' ' || v.color || ' ' || vs.shipping_status || ' ' || vsl.sale_status)", v.Search)
 	}
 
 	if mileageMin := r.URL.Query().Get("mileage_min"); mileageMin != "" {
@@ -85,6 +85,25 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 		v.QueryBuilder.AddMinRangeCondition("v.mileage_km", v.MileageMin)
 	} else if v.MileageMax != 0 {
 		v.QueryBuilder.AddMaxRangeCondition("v.mileage_km", v.MileageMax)
+	}
+
+	if yearMin := r.URL.Query().Get("year_min"); yearMin != "" {
+		v.YearMin, _ = strconv.Atoi(yearMin)
+	}
+	if yearMax := r.URL.Query().Get("year_max"); yearMax != "" {
+		v.YearMax, _ = strconv.Atoi(yearMax)
+	}
+	if (v.YearMin != 0 && v.YearMax != 0) && v.Year == 0 {
+		v.QueryBuilder.AddRangeCondition("v.year_of_manufacture", v.MileageMin, v.MileageMax)
+	} else if v.YearMin != 0 && v.YearMax == 0 {
+		v.QueryBuilder.AddMinRangeCondition("v.year_of_manufacture", v.YearMin)
+	} else if v.YearMax != 0 && v.Year == 0 {
+		v.QueryBuilder.AddMaxRangeCondition("v.year_of_manufacture", v.YearMax)
+	}
+
+	v.Color = r.URL.Query().Get("color")
+	if v.Color != "" {
+		v.QueryBuilder.AddCondition("v.color", v.Color)
 	}
 
 	return v

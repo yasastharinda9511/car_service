@@ -22,7 +22,12 @@ func NewVehicleService(db *database.Database) *VehicleService {
 
 func (s *VehicleService) GetAllVehicleCount(filter filters.Filter) (int64, error) {
 	var count int64
-	query := `SELECT COUNT(*) FROM vehicles v`
+	query := `SELECT COUNT(*)
+        FROM vehicles v
+        LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
+        LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
+        LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
+        LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id`
 
 	query, args := filter.GetQuery(query, "", -1, -1)
 
