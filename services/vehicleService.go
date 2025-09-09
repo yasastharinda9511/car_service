@@ -4,6 +4,7 @@ import (
 	"car_service/database"
 	"car_service/dto/request"
 	"car_service/entity"
+	"car_service/filters"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ func (s *VehicleService) GetAllVehicleCount() (int64, error) {
 	return count, nil
 }
 
-func (s *VehicleService) GetAllVehicles(limit, offset int) ([]entity.VehicleComplete, error) {
+func (s *VehicleService) GetAllVehicles(limit, offset int, filter filters.Filter) ([]entity.VehicleComplete, error) {
 	query := `
 		SELECT 
 			v.id, v.code, v.make, v.model, v.trim_level, v.year_of_manufacture, 
@@ -68,12 +69,12 @@ func (s *VehicleService) GetAllVehicles(limit, offset int) ([]entity.VehicleComp
 		LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
 		LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
 		LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-		LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
-		ORDER BY v.created_at DESC          
-		LIMIT $1 OFFSET $2
+		LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id       
 	`
 
-	rows, err := s.db.Db.Query(query, limit, offset)
+	query, args := filter.GetQuery(query, "", limit, offset)
+
+	rows, err := s.db.Db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

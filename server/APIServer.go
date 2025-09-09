@@ -4,10 +4,10 @@ import (
 	"car_service/config"
 	"car_service/database"
 	"car_service/dto/request"
+	"car_service/filters"
 	"car_service/services"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -120,7 +120,6 @@ func (s *APIServer) healthCheck(w http.ResponseWriter, r *http.Request) {
 
 // Vehicle handlers
 func (s *APIServer) getVehicles(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("getVehicles called")
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
@@ -131,14 +130,16 @@ func (s *APIServer) getVehicles(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * limit
 
-	vehicles, err := s.vehicleService.GetAllVehicles(limit, offset)
+	vehicleFilter := filters.NewVehicleFilters()
+	vehicleFilter.GetValuesFromRequest(r)
+
+	vehicles, err := s.vehicleService.GetAllVehicles(limit, offset, vehicleFilter)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	vehicleCount, err := s.vehicleService.GetAllVehicleCount()
-	fmt.Printf("%d", vehicleCount)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
