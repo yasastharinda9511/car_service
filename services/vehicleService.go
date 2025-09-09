@@ -5,6 +5,7 @@ import (
 	"car_service/dto/request"
 	"car_service/entity"
 	"car_service/filters"
+	"fmt"
 	"strings"
 	"time"
 
@@ -19,11 +20,13 @@ func NewVehicleService(db *database.Database) *VehicleService {
 	return &VehicleService{db: db}
 }
 
-func (s *VehicleService) GetAllVehicleCount() (int64, error) {
+func (s *VehicleService) GetAllVehicleCount(filter filters.Filter) (int64, error) {
 	var count int64
-	query := `SELECT COUNT(*) FROM vehicles`
+	query := `SELECT COUNT(*) FROM vehicles v`
 
-	err := s.db.Db.QueryRow(query).Scan(&count)
+	query, args := filter.GetQuery(query, "", -1, -1)
+
+	err := s.db.Db.QueryRow(query, args...).Scan(&count)
 	if err != nil {
 		// Log the error if you have a logger
 		// log.Printf("Error getting vehicle count: %v", err)
@@ -73,6 +76,7 @@ func (s *VehicleService) GetAllVehicles(limit, offset int, filter filters.Filter
 	`
 
 	query, args := filter.GetQuery(query, "", limit, offset)
+	fmt.Printf(query, args)
 
 	rows, err := s.db.Db.Query(query, args...)
 	if err != nil {

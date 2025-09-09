@@ -139,7 +139,7 @@ func (s *APIServer) getVehicles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vehicleCount, err := s.vehicleService.GetAllVehicleCount()
+	vehicleCount, err := s.vehicleService.GetAllVehicleCount(vehicleFilter)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return

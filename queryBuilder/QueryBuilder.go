@@ -86,7 +86,7 @@ func (qb *QueryBuilder) AddMaxRangeCondition(field string, arg interface{}) {
 //}
 
 // Build constructs the final query
-func (qb *QueryBuilder) Build(baseQuery string, orderBy string, limit, offset int) (string, []interface{}) {
+func (qb *QueryBuilder) Build(baseQuery string, orderBy string, limit int, offset int) (string, []interface{}) {
 	query := baseQuery
 
 	// Add WHERE conditions
@@ -104,13 +104,21 @@ func (qb *QueryBuilder) Build(baseQuery string, orderBy string, limit, offset in
 	}
 
 	// Add LIMIT and OFFSET
-	qb.argCounter++
-	limitPlaceholder := fmt.Sprintf("$%d", qb.argCounter)
-	qb.argCounter++
-	offsetPlaceholder := fmt.Sprintf("$%d", qb.argCounter)
+	newargs := append([]interface{}{}, qb.args...)
+	if limit > 0 {
+		qb.argCounter++
+		limitPlaceholder := fmt.Sprintf("$%d", qb.argCounter)
+		query += fmt.Sprintf(" LIMIT %s", limitPlaceholder)
+		newargs = append(newargs, limit)
 
-	query += fmt.Sprintf(" LIMIT %s OFFSET %s", limitPlaceholder, offsetPlaceholder)
-	qb.args = append(qb.args, limit, offset)
+	}
 
-	return query, qb.args
+	if offset > 0 {
+		qb.argCounter++
+		offsetPlaceholder := fmt.Sprintf("$%d", qb.argCounter)
+		query += fmt.Sprintf(" OFFSET %s", offsetPlaceholder)
+		newargs = append(newargs, offset)
+	}
+
+	return query, newargs
 }
