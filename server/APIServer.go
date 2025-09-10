@@ -4,16 +4,23 @@ import (
 	"car_service/config"
 	"car_service/database"
 	"car_service/dto/request"
+	"car_service/entity"
 	"car_service/filters"
 	"car_service/services"
+	"car_service/util"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -63,6 +70,8 @@ func (s *APIServer) setupRoutes() {
 	vehicles.HandleFunc("", s.getVehicles).Methods("GET")
 	vehicles.HandleFunc("/{id}", s.getVehicle).Methods("GET")
 	vehicles.HandleFunc("", s.createVehicle).Methods("POST")
+	vehicles.HandleFunc("/upload-image/{filename}", s.serveImageHandler).Methods("GET")
+	vehicles.HandleFunc("/upload-image/{id}", s.uploadImageHandler).Methods("POST")
 
 	vehicles.HandleFunc("/{id}/shipping", s.updateShipping).Methods("PUT")
 	vehicles.HandleFunc("/{id}/purchase", s.updatePurchase).Methods("PUT")
@@ -770,6 +779,102 @@ func (s *APIServer) getInventoryStatus(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": inventory})
+}
+
+func (s *APIServer) uploadImageHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	err := r.ParseMultipartForm(32 << 5)
+
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "Invalid make ID")
+		return
+	}
+
+	if err != nil {
+		http.Error(w, "Unable to parse form", http.StatusBadRequest)
+		return
+	}
+
+	file, fileHeader, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "Unable to get file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Validate file type
+	contentType := fileHeader.Header.Get("Content-Type")
+	if !util.IsValidImageType(contentType) {
+		http.Error(w, "Invalid file type. Only JPEG, PNG, GIF allowed", http.StatusBadRequest)
+		return
+	}
+
+	// Create upload directory
+	uploadDir := "uploads"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		http.Error(w, "Unable to create upload directory", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate unique filename
+	ext := filepath.Ext(fileHeader.Filename)
+	filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
+	filePath := filepath.Join(uploadDir, filename)
+
+	// Create destination file
+	dst, err := os.Create(filePath)
+	if err != nil {
+		http.Error(w, "Unable to create file", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	// Copy uploaded file to destination
+	_, err = io.Copy(dst, file)
+	if err != nil {
+		http.Error(w, "Unable to save file", http.StatusInternalServerError)
+		return
+	}
+
+	var vehicleImage entity.VehicleImage
+	vehicleImage.VehicleID = id
+	vehicleImage.Filename = filename
+	vehicleImage.FilePath = filePath
+	vehicleImage.FileSize = fileHeader.Size
+	vehicleImage.MimeType = contentType
+	vehicleImage.DisplayOrder = 1
+	vehicleImage.IsPrimary = true
+	vehicleImage.UploadDate = time.Now()
+
+	image, err := s.vehicleService.InsertVehicleImage(&vehicleImage)
+	if err != nil {
+		return
+	}
+
+	s.writeJSON(w, http.StatusCreated, image)
+}
+
+func (s *APIServer) serveImageHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	filename := vars["filename"]
+
+	// Security: validate filename to prevent directory traversal
+	if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+		http.Error(w, "Invalid filename", http.StatusBadRequest)
+		return
+	}
+
+	filePath := filepath.Join("uploads", filename)
+
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		http.Error(w, "Image not found", http.StatusNotFound)
+		return
+	}
+
+	// Serve the file
+	http.ServeFile(w, r, filePath)
 }
 
 func (s *APIServer) Start(port string, allowedOrigins []string) error {

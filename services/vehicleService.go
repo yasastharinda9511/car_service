@@ -70,14 +70,26 @@ func (s *VehicleService) GetAllVehicles(limit, offset int, filter filters.Filter
 		    vp.lc_bank,
 		    vp.lc_number,
 		    vp.lc_cost_jpy,
-		    vp.purchase_date
+		    vp.purchase_date,
+		    
+		    vi.id,
+			vi.vehicle_id,
+			vi.filename,
+			vi.original_name,
+			vi.file_path,
+			vi.file_size,
+			vi.mime_type,
+			vi.is_primary,
+			vi.upload_date,
+			vi.display_order
 		
 			
 		FROM vehicles v
 		LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
 		LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
 		LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-		LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id       
+		LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
+		LEFT JOIN vehicle_images vi ON v.id = vi.vehicle_id
 	`
 
 	query, args := filter.GetQuery(query, "", limit, offset)
@@ -108,6 +120,12 @@ func (s *VehicleService) GetAllVehicles(limit, offset int, filter filters.Filter
 			&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID, &vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
 			&vc.VehiclePurchase.BoughtFromContact, &vc.VehiclePurchase.BoughtFromAddress, &vc.VehiclePurchase.BoughtFromOtherContacts,
 			&vc.VehiclePurchase.PurchaseRemarks, &vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber, &vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
+
+			&vc.VehicleImage.ID, &vc.VehicleImage.VehicleID,
+			&vc.VehicleImage.Filename, &vc.VehicleImage.OriginalName,
+			&vc.VehicleImage.FilePath, &vc.VehicleImage.FileSize,
+			&vc.VehicleImage.MimeType, &vc.VehicleImage.IsPrimary,
+			&vc.VehicleImage.UploadDate, &vc.VehicleImage.DisplayOrder,
 		)
 		if err != nil {
 			return nil, err
@@ -151,13 +169,25 @@ func (s *VehicleService) GetVehicleByID(id int64) (*entity.VehicleComplete, erro
 		    vp.lc_bank,
 		    vp.lc_number,
 		    vp.lc_cost_jpy,
-		    vp.purchase_date
+		    vp.purchase_date,
+		
+			vi.id,
+			vi.vehicle_id,
+			vi.filename,
+			vi.original_name,
+			vi.file_path,
+			vi.file_size,
+			vi.mime_type,
+			vi.is_primary,
+			vi.upload_date,
+			vi.display_order
 		    
 		FROM vehicles v
 		LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
 		LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
 		LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
 		LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
+		LEFT JOIN vehicle_images vi ON v.id = vi.vehicle_id
 		WHERE v.id = $1
 	`
 
@@ -178,12 +208,32 @@ func (s *VehicleService) GetVehicleByID(id int64) (*entity.VehicleComplete, erro
 		&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID, &vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
 		&vc.VehiclePurchase.BoughtFromContact, &vc.VehiclePurchase.BoughtFromAddress, &vc.VehiclePurchase.BoughtFromOtherContacts,
 		&vc.VehiclePurchase.PurchaseRemarks, &vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber, &vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
+
+		&vc.VehicleImage.ID, &vc.VehicleImage.VehicleID,
+		&vc.VehicleImage.Filename, &vc.VehicleImage.OriginalName,
+		&vc.VehicleImage.FilePath, &vc.VehicleImage.FileSize,
+		&vc.VehicleImage.MimeType, &vc.VehicleImage.IsPrimary,
+		&vc.VehicleImage.UploadDate, &vc.VehicleImage.DisplayOrder,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &vc, nil
+}
+
+func (s *VehicleService) InsertVehicleImage(vehicleImage *entity.VehicleImage) (*entity.VehicleImage, error) {
+	query := `
+        INSERT INTO vehicle_images (vehicle_id, filename, original_name, file_path, file_size, mime_type, is_primary, display_order)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id, upload_date`
+
+	err := s.db.Db.QueryRow(query, vehicleImage.VehicleID, vehicleImage.Filename, vehicleImage.OriginalName, vehicleImage.FilePath, vehicleImage.FileSize, vehicleImage.MimeType, vehicleImage.IsPrimary, vehicleImage.DisplayOrder).Scan(&vehicleImage.ID, &vehicleImage.UploadDate)
+	if err != nil {
+		return nil, err
+	}
+
+	return vehicleImage, nil
 }
 
 func (s *VehicleService) CreateVehicle(req request.CreateVehicleRequest) (*entity.Vehicle, error) {

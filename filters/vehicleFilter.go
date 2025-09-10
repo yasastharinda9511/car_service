@@ -25,8 +25,8 @@ type VehicleFilters struct {
 	Models          []string
 	Colors          []string
 	Search          string
-	DateFrom        time.Time
-	DateTo          time.Time
+	DateFrom        *time.Time
+	DateTo          *time.Time
 	QueryBuilder    *queryBuilder.QueryBuilder
 }
 
@@ -104,6 +104,27 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 	v.Color = r.URL.Query().Get("color")
 	if v.Color != "" {
 		v.QueryBuilder.AddCondition("v.color", v.Color)
+	}
+
+	dateFromStr := r.URL.Query().Get("dateRangeStart")
+	if dateFromStr != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateFromStr)
+		if err == nil {
+			v.DateFrom = &parsedDate
+		}
+
+	}
+
+	dateToStr := r.URL.Query().Get("dateRangeEnd")
+	if dateToStr != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateToStr)
+		if err == nil {
+			v.DateTo = &parsedDate
+		}
+	}
+
+	if v.DateFrom != nil && v.DateTo != nil {
+		v.QueryBuilder.AddRangeCondition("v.created_at", *v.DateFrom, *v.DateTo)
 	}
 
 	return v

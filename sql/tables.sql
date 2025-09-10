@@ -826,3 +826,18 @@ FROM vehicles v
          LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
 ORDER BY v.code
     LIMIT 10;
+
+CREATE TABLE vehicle_images (
+                                id SERIAL PRIMARY KEY,
+                                vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                                filename VARCHAR(255) NOT NULL,
+                                original_name VARCHAR(255),
+                                file_path VARCHAR(500) NOT NULL,
+                                file_size INTEGER,
+                                mime_type VARCHAR(100),
+                                is_primary BOOLEAN DEFAULT false,
+                                upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                display_order INTEGER DEFAULT 0
+);
+
+CREATE INDEX idx_vehicle_images_vehicle_id ON vehicle_images(vehicle_id);
