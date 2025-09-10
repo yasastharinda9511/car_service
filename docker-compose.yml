@@ -15,7 +15,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./sql/tables.sql:/docker-entrypoint-initdb.d/table_script.sql
     networks:
-      - car_service_network  # Fixed: was user_management_network
+      - car_service_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 10s
@@ -31,7 +31,7 @@ services:
     environment:
       # Database configuration
       DB_HOST: postgres
-      DB_PORT: 5432           # Fixed: should be 5432 (internal port)
+      DB_PORT: 5432
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres1234}
       DB_NAME: ${DB_NAME:-cars}
@@ -52,9 +52,10 @@ services:
       - car_service_network
     volumes:
       - ./logs:/app/logs
+      - ./uploads:/app/uploads  # Added: Sync local uploads folder with container
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]  # Fixed: curl instead of wget
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
