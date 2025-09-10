@@ -33,8 +33,6 @@ func (s *VehicleService) GetAllVehicleCount(filter filters.Filter) (int64, error
 
 	err := s.db.Db.QueryRow(query, args...).Scan(&count)
 	if err != nil {
-		// Log the error if you have a logger
-		// log.Printf("Error getting vehicle count: %v", err)
 		return 0, err
 	}
 
@@ -44,52 +42,80 @@ func (s *VehicleService) GetAllVehicleCount(filter filters.Filter) (int64, error
 func (s *VehicleService) GetAllVehicles(limit, offset int, filter filters.Filter) ([]entity.VehicleComplete, error) {
 	query := `
 		SELECT 
-			v.id, v.code, v.make, v.model, v.trim_level, v.year_of_manufacture, 
-			v.color, v.mileage_km, v.chassis_id, v.condition_status, v.auction_grade,
-			v.cif_value, v.currency, v.created_at, v.updated_at,
-			
-			vs.id,
-			vs.vehicle_id,
-			vs.vessel_name, vs.departure_harbour, vs.shipment_date, vs.arrival_date, 
-			vs.clearing_date, vs.shipping_status,
-			
-			vf.id, vf.vehicle_id,
-			vf.total_cost_lkr, vf.charges_lkr, vf.duty_lkr, vf.clearing_lkr, vf.other_expenses_lkr,
-			
-			vsl.id, vsl.vehicle_id,
-			vsl.sold_date, vsl.revenue, vsl.profit, vsl.sold_to_name, vsl.sold_to_title,
-			vsl.contact_number, vsl.customer_address, vsl.sale_status,
-			
-			vp.id, vp.vehicle_id,
-		    vp.bought_from_name,
-		    vp.bought_from_title,
-		    vp.bought_from_contact,
-		    vp.bought_from_address,
-		    vp.bought_from_other_contacts,
-		    vp.purchase_remarks,
-		    vp.lc_bank,
-		    vp.lc_number,
-		    vp.lc_cost_jpy,
-		    vp.purchase_date,
-		    
-		    vi.id,
-			vi.vehicle_id,
-			vi.filename,
-			vi.original_name,
-			vi.file_path,
-			vi.file_size,
-			vi.mime_type,
-			vi.is_primary,
-			vi.upload_date,
-			vi.display_order
-		
-			
-		FROM vehicles v
-		LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-		LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
-		LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-		LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
-		LEFT JOIN vehicle_images vi ON v.id = vi.vehicle_id
+    v.id,
+    v.code,
+    v.make,
+    v.model,
+    v.trim_level,
+    v.year_of_manufacture,
+    v.color,
+    v.mileage_km,
+    v.chassis_id,
+    v.condition_status,
+    v.auction_grade,
+    v.cif_value,
+    v.currency,
+    v.created_at,
+    v.updated_at,
+
+    COALESCE(vs.id, 0) AS vs_id,
+    COALESCE(vs.vehicle_id, 0) AS vs_vehicle_id,
+    COALESCE(vs.vessel_name, '') AS vessel_name,
+    COALESCE(vs.departure_harbour, '') AS departure_harbour,
+    COALESCE(vs.shipment_date, '1970-01-01') AS shipment_date,
+    COALESCE(vs.arrival_date, '1970-01-01') AS arrival_date,
+    COALESCE(vs.clearing_date, '1970-01-01') AS clearing_date,
+    COALESCE(vs.shipping_status, 'PROCESSING') AS shipping_status,
+
+    COALESCE(vf.id, 0) AS vf_id,
+    COALESCE(vf.vehicle_id, 0) AS vf_vehicle_id,
+    COALESCE(vf.total_cost_lkr, 0) AS total_cost_lkr,
+    COALESCE(vf.charges_lkr, 0) AS charges_lkr,
+    COALESCE(vf.duty_lkr, 0) AS duty_lkr,
+    COALESCE(vf.clearing_lkr, 0) AS clearing_lkr,
+    COALESCE(vf.other_expenses_lkr, 0) AS other_expenses_lkr,
+
+    COALESCE(vsl.id, 0) AS vsl_id,
+    COALESCE(vsl.vehicle_id, 0) AS vsl_vehicle_id,
+    COALESCE(vsl.sold_date, '1970-01-01') AS sold_date,
+    COALESCE(vsl.revenue, 0) AS revenue,
+    COALESCE(vsl.profit, 0) AS profit,
+    COALESCE(vsl.sold_to_name, '') AS sold_to_name,
+    COALESCE(vsl.sold_to_title, '') AS sold_to_title,
+    COALESCE(vsl.contact_number, '') AS contact_number,
+    COALESCE(vsl.customer_address, '') AS customer_address,
+    COALESCE(vsl.sale_status, 'AVAILABLE') AS sale_status,
+
+    COALESCE(vp.id, 0) AS vp_id,
+    COALESCE(vp.vehicle_id, 0) AS vp_vehicle_id,
+    COALESCE(vp.bought_from_name, '') AS bought_from_name,
+    COALESCE(vp.bought_from_title, '') AS bought_from_title,
+    COALESCE(vp.bought_from_contact, '') AS bought_from_contact,
+    COALESCE(vp.bought_from_address, '') AS bought_from_address,
+    COALESCE(vp.bought_from_other_contacts, '') AS bought_from_other_contacts,
+    COALESCE(vp.purchase_remarks, '') AS purchase_remarks,
+    COALESCE(vp.lc_bank, '') AS lc_bank,
+    COALESCE(vp.lc_number, '') AS lc_number,
+    COALESCE(vp.lc_cost_jpy, 0) AS lc_cost_jpy,
+    COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date,
+
+    COALESCE(vi.id, 0) AS vi_id,
+    COALESCE(vi.vehicle_id, 0) AS vi_vehicle_id,
+    COALESCE(vi.filename, '') AS filename,
+    COALESCE(vi.original_name, '') AS original_name,
+    COALESCE(vi.file_path, '') AS file_path,
+    COALESCE(vi.file_size, 0) AS file_size,
+    COALESCE(vi.mime_type, '') AS mime_type,
+    COALESCE(vi.is_primary, false) AS is_primary,
+    COALESCE(vi.upload_date, '1970-01-01') AS upload_date,
+    COALESCE(vi.display_order, 0) AS display_order
+
+FROM vehicles v
+LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
+LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
+LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
+LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
+LEFT JOIN vehicle_images vi ON v.id = vi.vehicle_id
 	`
 
 	query, args := filter.GetQuery(query, "", limit, offset)
