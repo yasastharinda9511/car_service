@@ -86,7 +86,7 @@ func (qb *QueryBuilder) AddMaxRangeCondition(field string, arg interface{}) {
 //}
 
 // Build constructs the final query
-func (qb *QueryBuilder) Build(baseQuery string, orderBy string, limit int, offset int) (string, []interface{}) {
+func (qb *QueryBuilder) Build(baseQuery string, groupBy string, orderBy string, limit int, offset int) (string, []interface{}) {
 	query := baseQuery
 
 	// Add WHERE conditions
@@ -96,6 +96,10 @@ func (qb *QueryBuilder) Build(baseQuery string, orderBy string, limit int, offse
 			placeholders[i] = condition.assemble()
 		}
 		query += " WHERE " + strings.Join(placeholders, " AND ")
+	}
+
+	if groupBy != "" {
+		query += " GROUP BY " + groupBy
 	}
 
 	// Add ORDER BY

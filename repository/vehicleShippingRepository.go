@@ -7,6 +7,7 @@ import (
 
 	"car_service/database"
 	"car_service/dto/request"
+	"car_service/filters"
 )
 
 type VehicleShippingRepository struct{}
@@ -57,4 +58,15 @@ func (r *VehicleShippingRepository) UpdateShippingStatus(ctx context.Context, ex
 	_, err := exec.ExecContext(ctx, query, vehicleID, detailsRequest.VesselName, detailsRequest.DepartureHarbour,
 		detailsRequest.ShipmentDate, detailsRequest.ArrivalDate, detailsRequest.ClearingDate, detailsRequest.ShippingStatus)
 	return err
+}
+
+func (r *VehicleShippingRepository) getShippingStustVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) {
+	query := `SELECT 
+    shipping_status,
+    COUNT(*) as vehicle_count
+	FROM vehicle_shipping vs`
+
+	query, args := filter.GetQuery(query, "vs.shippin_status", "", -1, -1)
+	exec.QueryContext(ctx, query, args...)
+
 }

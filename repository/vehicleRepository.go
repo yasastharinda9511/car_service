@@ -93,7 +93,7 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 		LEFT JOIN vehicle_images vi ON v.id = vi.vehicle_id
 	`
 
-	query, args := filter.GetQuery(query, "", limit, offset)
+	query, args := filter.GetQuery(query, "", "", limit, offset)
 	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ func (s *VehicleRepository) GetAllVehicleCount(ctx context.Context, exec databas
         LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
         LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id`
 
-	query, args := filter.GetQuery(query, "", -1, -1)
+	query, args := filter.GetQuery(query, "", "", -1, -1)
 
 	err := exec.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {

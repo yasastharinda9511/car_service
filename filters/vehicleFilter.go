@@ -125,11 +125,15 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 
 	if v.DateFrom != nil && v.DateTo != nil {
 		v.QueryBuilder.AddRangeCondition("v.created_at", *v.DateFrom, *v.DateTo)
+	} else if v.DateTo != nil {
+		v.QueryBuilder.AddMinRangeCondition("v.created_at", *v.DateTo)
+	} else if v.DateFrom != nil {
+		v.QueryBuilder.AddMaxRangeCondition("v.created_at", *v.DateFrom)
 	}
 
 	return v
 }
 
-func (v *VehicleFilters) GetQuery(baseQuery string, orderBy string, limit, offset int) (string, []interface{}) {
-	return v.QueryBuilder.Build(baseQuery, orderBy, limit, offset)
+func (v *VehicleFilters) GetQuery(baseQuery string, groupBy string, orderBy string, limit, offset int) (string, []interface{}) {
+	return v.QueryBuilder.Build(baseQuery, groupBy, orderBy, limit, offset)
 }
