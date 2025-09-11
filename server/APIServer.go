@@ -2,13 +2,15 @@ package server
 
 import (
 	"car_service/config"
-	"car_service/database"
 	"car_service/dto/request"
+
+	//"car_service/database"
 	"car_service/entity"
 	"car_service/filters"
 	"car_service/services"
 	"car_service/util"
 	"database/sql"
+	//"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,15 +28,15 @@ import (
 
 type APIServer struct {
 	vehicleService *services.VehicleService
-	orderService   *services.OrderService
-	router         *mux.Router
+	//orderService   *services.OrderService
+	router *mux.Router
 }
 
-func NewAPIServer(db *database.Database) *APIServer {
+func NewAPIServer(db *sql.DB) *APIServer {
 	server := &APIServer{
 		vehicleService: services.NewVehicleService(db),
-		orderService:   services.NewOrderService(db),
-		router:         mux.NewRouter(),
+		//orderService:   services.NewOrderService(db),
+		router: mux.NewRouter(),
 	}
 
 	server.setupRoutes()
@@ -78,32 +80,32 @@ func (s *APIServer) setupRoutes() {
 	vehicles.HandleFunc("/{id}/financials", s.updateFinancials).Methods("PUT")
 	vehicles.HandleFunc("/{id}/sales", s.updateSales).Methods("PUT")
 	vehicles.HandleFunc("/{id}", s.updateVehicle).Methods("PUT")
-
-	// Order routes
-	orders := api.PathPrefix("/orders").Subrouter()
-	orders.HandleFunc("", s.getOrders).Methods("GET")
-	orders.HandleFunc("/{id}", s.getOrder).Methods("GET")
-	orders.HandleFunc("", s.createOrder).Methods("POST")
-	orders.HandleFunc("/{id}/status", s.updateOrderStatus).Methods("PUT")
-
-	// Analytics routes
-	analytics := api.PathPrefix("/analytics").Subrouter()
-	analytics.HandleFunc("/dashboard", s.getDashboardStats).Methods("GET")
-	analytics.HandleFunc("/sales-summary", s.getSalesSummary).Methods("GET")
-	analytics.HandleFunc("/inventory-status", s.getInventoryStatus).Methods("GET")
-
-	// Vehicle Makes routes
-	makes := api.PathPrefix("/makes").Subrouter()
-	makes.HandleFunc("", s.createVehicleMake).Methods("POST")
-	makes.HandleFunc("", s.getVehicleMakes).Methods("GET")
-	makes.HandleFunc("/{id}", s.updateVehicleMake).Methods("PUT")
+	//
+	//// Order routes
+	//orders := api.PathPrefix("/orders").Subrouter()
+	//orders.HandleFunc("", s.getOrders).Methods("GET")
+	//orders.HandleFunc("/{id}", s.getOrder).Methods("GET")
+	//orders.HandleFunc("", s.createOrder).Methods("POST")
+	//orders.HandleFunc("/{id}/status", s.updateOrderStatus).Methods("PUT")
+	//
+	//// Analytics routes
+	//analytics := api.PathPrefix("/analytics").Subrouter()
+	//analytics.HandleFunc("/dashboard", s.getDashboardStats).Methods("GET")
+	//analytics.HandleFunc("/sales-summary", s.getSalesSummary).Methods("GET")
+	//analytics.HandleFunc("/inventory-status", s.getInventoryStatus).Methods("GET")
+	//
+	//// Vehicle Makes routes
+	//makes := api.PathPrefix("/makes").Subrouter()
+	//makes.HandleFunc("", s.createVehicleMake).Methods("POST")
+	//makes.HandleFunc("", s.getVehicleMakes).Methods("GET")
+	//makes.HandleFunc("/{id}", s.updateVehicleMake).Methods("PUT")
 
 	// Vehicle Models routes
-	models := api.PathPrefix("/models").Subrouter()
-	models.HandleFunc("", s.createVehicleModel).Methods("POST")
-	models.HandleFunc("", s.getVehicleModels).Methods("GET")
-	models.HandleFunc("/{id}", s.getVehicleModel).Methods("GET")
-	models.HandleFunc("/{id}", s.updateVehicleModel).Methods("PUT")
+	//models := api.PathPrefix("/models").Subrouter()
+	//models.HandleFunc("", s.createVehicleModel).Methods("POST")
+	//models.HandleFunc("", s.getVehicleModels).Methods("GET")
+	//models.HandleFunc("/{id}", s.getVehicleModel).Methods("GET")
+	//models.HandleFunc("/{id}", s.updateVehicleModel).Methods("PUT")
 }
 
 // Helper functions for JSON responses
@@ -142,27 +144,14 @@ func (s *APIServer) getVehicles(w http.ResponseWriter, r *http.Request) {
 	vehicleFilter := filters.NewVehicleFilters()
 	vehicleFilter.GetValuesFromRequest(r)
 
-	vehicles, err := s.vehicleService.GetAllVehicles(limit, offset, vehicleFilter)
+	vehicles, err := s.vehicleService.GetAllVehicles(r.Context(), limit, offset, vehicleFilter)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	vehicleCount, err := s.vehicleService.GetAllVehicleCount(vehicleFilter)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := map[string]interface{}{
-		"data": vehicles,
-		"meta": map[string]interface{}{
-			"page":  page,
-			"limit": limit,
-			"total": vehicleCount,
-		},
-	}
-	s.writeJSON(w, http.StatusOK, response)
+	vehicles.Meta.Page = page
+	s.writeJSON(w, http.StatusOK, vehicles)
 }
 
 func (s *APIServer) getVehicle(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +162,7 @@ func (s *APIServer) getVehicle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vehicle, err := s.vehicleService.GetVehicleByID(id)
+	vehicle, err := s.vehicleService.GetVehicleByID(r.Context(), id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			s.writeError(w, http.StatusNotFound, "Vehicle not found")
@@ -199,7 +188,7 @@ func (s *APIServer) createVehicle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vehicle, err := s.vehicleService.CreateVehicle(req)
+	vehicle, err := s.vehicleService.CreateVehicle(r.Context(), req)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -223,7 +212,7 @@ func (s *APIServer) updateShipping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.vehicleService.UpdateShippingStatus(id, req)
+	err = s.vehicleService.UpdateShippingStatus(r.Context(), id, req)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -246,20 +235,17 @@ func (s *APIServer) updatePurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse purchase date if provided
-	var purchaseDate *time.Time
-	if req.PurchaseDate != nil && *req.PurchaseDate != "" {
-		if parsed, err := time.Parse(time.RFC3339, *req.PurchaseDate); err == nil {
-			purchaseDate = &parsed
-		} else {
+	if req.PurchaseDate != nil {
+		// Convert back to string for validation (if necessary)
+		parsed, err := time.Parse(time.RFC3339, req.PurchaseDate.Format(time.RFC3339))
+		if err != nil {
 			s.writeError(w, http.StatusBadRequest, "Invalid purchase_date format. Use RFC3339 format")
 			return
 		}
+		req.PurchaseDate = &parsed
 	}
 
-	err = s.vehicleService.UpdatePurchaseDetails(id, req.BoughtFromName, req.BoughtFromTitle,
-		req.BoughtFromContact, req.BoughtFromAddress, req.BoughtFromOtherContacts,
-		req.PurchaseRemarks, req.LCBank, req.LCNumber, req.LCCostJPY, purchaseDate)
+	err = s.vehicleService.UpdatePurchaseDetails(r.Context(), id, &req)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -289,8 +275,7 @@ func (s *APIServer) updateFinancials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.vehicleService.UpdateFinancialDetails(id, req.ChargesLKR, req.TTLKR,
-		req.DutyLKR, req.ClearingLKR, req.OtherExpensesLKR, req.TotalCostLKR)
+	err = s.vehicleService.UpdateFinancialDetails(r.Context(), id, &req)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -355,7 +340,7 @@ func (s *APIServer) updateSales(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = s.vehicleService.UpdateSalesDetails(id, req)
+	err = s.vehicleService.UpdateSalesDetails(r.Context(), id, &req)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -397,7 +382,7 @@ func (s *APIServer) updateVehicle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = s.vehicleService.UpdateVehicleDetails(id, &req)
+	err = s.vehicleService.UpdateVehicleDetails(r.Context(), id, &req)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -406,384 +391,385 @@ func (s *APIServer) updateVehicle(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]string{"message": "Vehicle details updated successfully"})
 }
 
-func (s *APIServer) createVehicleMake(w http.ResponseWriter, r *http.Request) {
-	var req request.CreateVehicleMake
+//
+//	func (s *APIServer) createVehicleMake(w http.ResponseWriter, r *http.Request) {
+//		var req request.CreateVehicleMake
+//
+//		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid JSON")
+//			return
+//		}
+//
+//		// Validation
+//		if *req.MakeName == "" {
+//			s.writeError(w, http.StatusBadRequest, "Make name is required")
+//			return
+//		}
+//
+//		// Set defaults
+//		if req.CountryOrigin == nil || *req.CountryOrigin == "" {
+//			defaultVal := "Japan"
+//			req.CountryOrigin = &defaultVal
+//		}
+//		if req.IsActive == nil {
+//			defaultActive := true
+//			req.IsActive = &defaultActive
+//		}
+//
+//		make, err := s.vehicleService.CreateVehicleMake(req)
+//		if err != nil {
+//			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+//				s.writeError(w, http.StatusConflict, "Make name already exists")
+//				return
+//			}
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		s.writeJSON(w, http.StatusCreated, map[string]interface{}{
+//			"data":    make,
+//			"message": "Vehicle make created successfully",
+//		})
+//	}
+//func (s *APIServer) getVehicleMakes(w http.ResponseWriter, r *http.Request) {
+//	activeOnly := r.URL.Query().Get("active_only") == "true"
+//
+//	makes, err := s.vehicleService.GetAllVehicleMakes(activeOnly)
+//	if err != nil {
+//		s.writeError(w, http.StatusInternalServerError, err.Error())
+//		return
+//	}
+//
+//	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+//		"data": makes,
+//		"meta": map[string]interface{}{
+//			"total":       len(makes),
+//			"active_only": activeOnly,
+//		},
+//	})
+//}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	// Validation
-	if *req.MakeName == "" {
-		s.writeError(w, http.StatusBadRequest, "Make name is required")
-		return
-	}
-
-	// Set defaults
-	if req.CountryOrigin == nil || *req.CountryOrigin == "" {
-		defaultVal := "Japan"
-		req.CountryOrigin = &defaultVal
-	}
-	if req.IsActive == nil {
-		defaultActive := true
-		req.IsActive = &defaultActive
-	}
-
-	make, err := s.vehicleService.CreateVehicleMake(req)
-	if err != nil {
-		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-			s.writeError(w, http.StatusConflict, "Make name already exists")
-			return
-		}
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"data":    make,
-		"message": "Vehicle make created successfully",
-	})
-}
-
-func (s *APIServer) getVehicleMakes(w http.ResponseWriter, r *http.Request) {
-	activeOnly := r.URL.Query().Get("active_only") == "true"
-
-	makes, err := s.vehicleService.GetAllVehicleMakes(activeOnly)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data": makes,
-		"meta": map[string]interface{}{
-			"total":       len(makes),
-			"active_only": activeOnly,
-		},
-	})
-}
-
-func (s *APIServer) updateVehicleMake(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid make ID")
-		return
-	}
-
-	var req request.CreateVehicleMake
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	err = s.vehicleService.UpdateVehicleMake(id, req.MakeName, req.CountryOrigin, req.IsActive)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusOK, map[string]string{"message": "Vehicle make updated successfully"})
-}
-
-func (s *APIServer) createVehicleModel(w http.ResponseWriter, r *http.Request) {
-	var req request.CreateVehicleModel
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	// Validation
-	if req.MakeID <= 0 {
-		s.writeError(w, http.StatusBadRequest, "Valid make ID is required")
-		return
-	}
-	if *req.ModelName == "" {
-		s.writeError(w, http.StatusBadRequest, "Model name is required")
-		return
-	}
-
-	// Set defaults
-	if req.IsActive == nil {
-		defaultActive := true
-		req.IsActive = &defaultActive
-	}
-
-	model, err := s.vehicleService.CreateVehicleModel(req)
-	if err != nil {
-		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-			s.writeError(w, http.StatusConflict, "Model name already exists for this make")
-			return
-		}
-		if strings.Contains(err.Error(), "foreign key") {
-			s.writeError(w, http.StatusBadRequest, "Invalid make ID")
-			return
-		}
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"data":    model,
-		"message": "Vehicle model created successfully",
-	})
-}
-
-func (s *APIServer) getVehicleModels(w http.ResponseWriter, r *http.Request) {
-	makeIDStr := r.URL.Query().Get("make_id")
-	activeOnly := r.URL.Query().Get("active_only") == "true"
-
-	var makeID *int
-	if makeIDStr != "" {
-		if id, err := strconv.Atoi(makeIDStr); err == nil {
-			makeID = &id
-		} else {
-			s.writeError(w, http.StatusBadRequest, "Invalid make_id parameter")
-			return
-		}
-	}
-
-	models, err := s.vehicleService.GetVehicleModels(makeID, activeOnly)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data": models,
-		"meta": map[string]interface{}{
-			"total":       len(models),
-			"make_id":     makeID,
-			"active_only": activeOnly,
-		},
-	})
-}
-
-func (s *APIServer) getVehicleModel(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid model ID")
-		return
-	}
-
-	model, err := s.vehicleService.GetVehicleModelByID(id)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			s.writeError(w, http.StatusNotFound, "Vehicle model not found")
-			return
-		}
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": model})
-}
-
-func (s *APIServer) updateVehicleModel(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid model ID")
-		return
-	}
-
-	var req request.CreateVehicleModel
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	err = s.vehicleService.UpdateVehicleModel(id, req.ModelName, req.BodyType,
-		req.FuelType, req.TransmissionType, req.EngineSizeCC, req.IsActive)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusOK, map[string]string{"message": "Vehicle model updated successfully"})
-}
-
-// Order handlers
-func (s *APIServer) getOrders(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page < 1 {
-		page = 1
-	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if limit < 1 {
-		limit = 10
-	}
-	offset := (page - 1) * limit
-
-	orders, err := s.orderService.GetAllOrders(limit, offset)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := map[string]interface{}{
-		"data": orders,
-		"meta": map[string]interface{}{
-			"page":  page,
-			"limit": limit,
-			"total": len(orders),
-		},
-	}
-	s.writeJSON(w, http.StatusOK, response)
-}
-
-func (s *APIServer) getOrder(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
-	if err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid order ID")
-		return
-	}
-
-	order, err := s.orderService.GetOrderByID(id)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			s.writeError(w, http.StatusNotFound, "Order not found")
-			return
-		}
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": order})
-}
-
-func (s *APIServer) createOrder(w http.ResponseWriter, r *http.Request) {
-	var req request.CreateOrderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	// Validation
-	if req.CustomerName == "" || req.ContactNumber == "" || req.PreferredMake == "" || req.PreferredModel == "" {
-		s.writeError(w, http.StatusBadRequest, "Missing required fields")
-		return
-	}
-
-	order, err := s.orderService.CreateOrder(req)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := map[string]interface{}{
-		"data":    order,
-		"message": "Order created successfully",
-	}
-	s.writeJSON(w, http.StatusCreated, response)
-}
-
-func (s *APIServer) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
-	if err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid order ID")
-		return
-	}
-
-	var req struct {
-		Status string `json:"status"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	if req.Status == "" {
-		s.writeError(w, http.StatusBadRequest, "Status is required")
-		return
-	}
-
-	err = s.orderService.UpdateOrderStatus(id, req.Status)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	s.writeJSON(w, http.StatusOK, map[string]string{"message": "Order status updated successfully"})
-}
-
-// Analytics handlers
-func (s *APIServer) getDashboardStats(w http.ResponseWriter, r *http.Request) {
-	// This would typically aggregate data from multiple tables
-	stats := map[string]interface{}{
-		"total_vehicles":    150,
-		"vehicles_in_stock": 45,
-		"vehicles_sold":     105,
-		"pending_orders":    8,
-		"total_revenue":     450000000, // LKR
-		"total_profit":      75000000,  // LKR
-		"profit_margin":     16.67,     // %
-	}
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": stats})
-}
-
-func (s *APIServer) getSalesSummary(w http.ResponseWriter, r *http.Request) {
-	// Monthly sales summary - would typically come from database
-	summary := []map[string]interface{}{
-		{
-			"month":         "2024-09",
-			"vehicles_sold": 12,
-			"total_revenue": 45000000,
-			"total_profit":  7500000,
-			"profit_margin": 16.67,
-		},
-		{
-			"month":         "2024-08",
-			"vehicles_sold": 15,
-			"total_revenue": 52000000,
-			"total_profit":  8200000,
-			"profit_margin": 15.77,
-		},
-	}
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": summary})
-}
-
-func (s *APIServer) getInventoryStatus(w http.ResponseWriter, r *http.Request) {
-	// Inventory breakdown by status
-	inventory := []map[string]interface{}{
-		{
-			"shipping_status": "DELIVERED",
-			"sale_status":     "SOLD",
-			"count":           105,
-			"investment":      315000000,
-		},
-		{
-			"shipping_status": "CLEARED",
-			"sale_status":     "AVAILABLE",
-			"count":           25,
-			"investment":      75000000,
-		},
-		{
-			"shipping_status": "ARRIVED",
-			"sale_status":     "AVAILABLE",
-			"count":           15,
-			"investment":      45000000,
-		},
-		{
-			"shipping_status": "SHIPPED",
-			"sale_status":     "AVAILABLE",
-			"count":           5,
-			"investment":      15000000,
-		},
-	}
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": inventory})
-}
-
+//	func (s *APIServer) updateVehicleMake(w http.ResponseWriter, r *http.Request) {
+//		vars := mux.Vars(r)
+//		id, err := strconv.Atoi(vars["id"])
+//		if err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid make ID")
+//			return
+//		}
+//
+//		var req request.CreateVehicleMake
+//
+//		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid JSON")
+//			return
+//		}
+//
+//		err = s.vehicleService.UpdateVehicleMake(id, req.MakeName, req.CountryOrigin, req.IsActive)
+//		if err != nil {
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		s.writeJSON(w, http.StatusOK, map[string]string{"message": "Vehicle make updated successfully"})
+//	}
+//
+//	func (s *APIServer) createVehicleModel(w http.ResponseWriter, r *http.Request) {
+//		var req request.CreateVehicleModel
+//
+//		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid JSON")
+//			return
+//		}
+//
+//		// Validation
+//		if req.MakeID <= 0 {
+//			s.writeError(w, http.StatusBadRequest, "Valid make ID is required")
+//			return
+//		}
+//		if *req.ModelName == "" {
+//			s.writeError(w, http.StatusBadRequest, "Model name is required")
+//			return
+//		}
+//
+//		// Set defaults
+//		if req.IsActive == nil {
+//			defaultActive := true
+//			req.IsActive = &defaultActive
+//		}
+//
+//		model, err := s.vehicleService.CreateVehicleModel(req)
+//		if err != nil {
+//			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+//				s.writeError(w, http.StatusConflict, "Model name already exists for this make")
+//				return
+//			}
+//			if strings.Contains(err.Error(), "foreign key") {
+//				s.writeError(w, http.StatusBadRequest, "Invalid make ID")
+//				return
+//			}
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		s.writeJSON(w, http.StatusCreated, map[string]interface{}{
+//			"data":    model,
+//			"message": "Vehicle model created successfully",
+//		})
+//	}
+//
+//	func (s *APIServer) getVehicleModels(w http.ResponseWriter, r *http.Request) {
+//		makeIDStr := r.URL.Query().Get("make_id")
+//		activeOnly := r.URL.Query().Get("active_only") == "true"
+//
+//		var makeID *int
+//		if makeIDStr != "" {
+//			if id, err := strconv.Atoi(makeIDStr); err == nil {
+//				makeID = &id
+//			} else {
+//				s.writeError(w, http.StatusBadRequest, "Invalid make_id parameter")
+//				return
+//			}
+//		}
+//
+//		models, err := s.vehicleService.GetVehicleModels(makeID, activeOnly)
+//		if err != nil {
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		s.writeJSON(w, http.StatusOK, map[string]interface{}{
+//			"data": models,
+//			"meta": map[string]interface{}{
+//				"total":       len(models),
+//				"make_id":     makeID,
+//				"active_only": activeOnly,
+//			},
+//		})
+//	}
+//
+//	func (s *APIServer) getVehicleModel(w http.ResponseWriter, r *http.Request) {
+//		vars := mux.Vars(r)
+//		id, err := strconv.Atoi(vars["id"])
+//		if err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid model ID")
+//			return
+//		}
+//
+//		model, err := s.vehicleService.GetVehicleModelByID(id)
+//		if err != nil {
+//			if err == sql.ErrNoRows {
+//				s.writeError(w, http.StatusNotFound, "Vehicle model not found")
+//				return
+//			}
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": model})
+//	}
+//
+//	func (s *APIServer) updateVehicleModel(w http.ResponseWriter, r *http.Request) {
+//		vars := mux.Vars(r)
+//		id, err := strconv.Atoi(vars["id"])
+//		if err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid model ID")
+//			return
+//		}
+//
+//		var req request.CreateVehicleModel
+//
+//		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid JSON")
+//			return
+//		}
+//
+//		err = s.vehicleService.UpdateVehicleModel(id, req.ModelName, req.BodyType,
+//			req.FuelType, req.TransmissionType, req.EngineSizeCC, req.IsActive)
+//		if err != nil {
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		s.writeJSON(w, http.StatusOK, map[string]string{"message": "Vehicle model updated successfully"})
+//	}
+//
+// // Order handlers
+//
+//	func (s *APIServer) getOrders(w http.ResponseWriter, r *http.Request) {
+//		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+//		if page < 1 {
+//			page = 1
+//		}
+//		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+//		if limit < 1 {
+//			limit = 10
+//		}
+//		offset := (page - 1) * limit
+//
+//		orders, err := s.orderService.GetAllOrders(limit, offset)
+//		if err != nil {
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		response := map[string]interface{}{
+//			"data": orders,
+//			"meta": map[string]interface{}{
+//				"page":  page,
+//				"limit": limit,
+//				"total": len(orders),
+//			},
+//		}
+//		s.writeJSON(w, http.StatusOK, response)
+//	}
+//
+//	func (s *APIServer) getOrder(w http.ResponseWriter, r *http.Request) {
+//		vars := mux.Vars(r)
+//		id, err := strconv.ParseInt(vars["id"], 10, 64)
+//		if err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid order ID")
+//			return
+//		}
+//
+//		order, err := s.orderService.GetOrderByID(id)
+//		if err != nil {
+//			if err == sql.ErrNoRows {
+//				s.writeError(w, http.StatusNotFound, "Order not found")
+//				return
+//			}
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": order})
+//	}
+//
+//	func (s *APIServer) createOrder(w http.ResponseWriter, r *http.Request) {
+//		var req request.CreateOrderRequest
+//		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid JSON")
+//			return
+//		}
+//
+//		// Validation
+//		if req.CustomerName == "" || req.ContactNumber == "" || req.PreferredMake == "" || req.PreferredModel == "" {
+//			s.writeError(w, http.StatusBadRequest, "Missing required fields")
+//			return
+//		}
+//
+//		order, err := s.orderService.CreateOrder(req)
+//		if err != nil {
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		response := map[string]interface{}{
+//			"data":    order,
+//			"message": "Order created successfully",
+//		}
+//		s.writeJSON(w, http.StatusCreated, response)
+//	}
+//
+//	func (s *APIServer) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
+//		vars := mux.Vars(r)
+//		id, err := strconv.ParseInt(vars["id"], 10, 64)
+//		if err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid order ID")
+//			return
+//		}
+//
+//		var req struct {
+//			Status string `json:"status"`
+//		}
+//		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+//			s.writeError(w, http.StatusBadRequest, "Invalid JSON")
+//			return
+//		}
+//
+//		if req.Status == "" {
+//			s.writeError(w, http.StatusBadRequest, "Status is required")
+//			return
+//		}
+//
+//		err = s.orderService.UpdateOrderStatus(id, req.Status)
+//		if err != nil {
+//			s.writeError(w, http.StatusInternalServerError, err.Error())
+//			return
+//		}
+//
+//		s.writeJSON(w, http.StatusOK, map[string]string{"message": "Order status updated successfully"})
+//	}
+//
+// // Analytics handlers
+//
+//	func (s *APIServer) getDashboardStats(w http.ResponseWriter, r *http.Request) {
+//		// This would typically aggregate data from multiple tables
+//		stats := map[string]interface{}{
+//			"total_vehicles":    150,
+//			"vehicles_in_stock": 45,
+//			"vehicles_sold":     105,
+//			"pending_orders":    8,
+//			"total_revenue":     450000000, // LKR
+//			"total_profit":      75000000,  // LKR
+//			"profit_margin":     16.67,     // %
+//		}
+//		s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": stats})
+//	}
+//
+//	func (s *APIServer) getSalesSummary(w http.ResponseWriter, r *http.Request) {
+//		// Monthly sales summary - would typically come from database
+//		summary := []map[string]interface{}{
+//			{
+//				"month":         "2024-09",
+//				"vehicles_sold": 12,
+//				"total_revenue": 45000000,
+//				"total_profit":  7500000,
+//				"profit_margin": 16.67,
+//			},
+//			{
+//				"month":         "2024-08",
+//				"vehicles_sold": 15,
+//				"total_revenue": 52000000,
+//				"total_profit":  8200000,
+//				"profit_margin": 15.77,
+//			},
+//		}
+//		s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": summary})
+//	}
+//
+//	func (s *APIServer) getInventoryStatus(w http.ResponseWriter, r *http.Request) {
+//		// Inventory breakdown by status
+//		inventory := []map[string]interface{}{
+//			{
+//				"shipping_status": "DELIVERED",
+//				"sale_status":     "SOLD",
+//				"count":           105,
+//				"investment":      315000000,
+//			},
+//			{
+//				"shipping_status": "CLEARED",
+//				"sale_status":     "AVAILABLE",
+//				"count":           25,
+//				"investment":      75000000,
+//			},
+//			{
+//				"shipping_status": "ARRIVED",
+//				"sale_status":     "AVAILABLE",
+//				"count":           15,
+//				"investment":      45000000,
+//			},
+//			{
+//				"shipping_status": "SHIPPED",
+//				"sale_status":     "AVAILABLE",
+//				"count":           5,
+//				"investment":      15000000,
+//			},
+//		}
+//		s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": inventory})
+//	}
 func (s *APIServer) uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	err := r.ParseMultipartForm(32 << 5)
+	err := r.ParseMultipartForm(32 << 20) // Increased size limit for multiple files
 
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
@@ -796,17 +782,10 @@ func (s *APIServer) uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, fileHeader, err := r.FormFile("image")
-	if err != nil {
-		http.Error(w, "Unable to get file", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	// Validate file type
-	contentType := fileHeader.Header.Get("Content-Type")
-	if !util.IsValidImageType(contentType) {
-		http.Error(w, "Invalid file type. Only JPEG, PNG, GIF allowed", http.StatusBadRequest)
+	// Get all files from the "images" field
+	files := r.MultipartForm.File["images"]
+	if len(files) == 0 {
+		http.Error(w, "No images provided", http.StatusBadRequest)
 		return
 	}
 
@@ -817,42 +796,87 @@ func (s *APIServer) uploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate unique filename
-	ext := filepath.Ext(fileHeader.Filename)
-	filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
-	filePath := filepath.Join(uploadDir, filename)
+	var uploadedImages []entity.VehicleImage
+	var errors []string
 
-	// Create destination file
-	dst, err := os.Create(filePath)
-	if err != nil {
-		http.Error(w, "Unable to create file", http.StatusInternalServerError)
-		return
+	for i, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("Unable to open file %s: %v", fileHeader.Filename, err))
+			continue
+		}
+
+		contentType := fileHeader.Header.Get("Content-Type")
+		if !util.IsValidImageType(contentType) {
+			file.Close()
+			errors = append(errors, fmt.Sprintf("Invalid file type for %s. Only JPEG, PNG, GIF allowed", fileHeader.Filename))
+			continue
+		}
+
+		ext := filepath.Ext(fileHeader.Filename)
+		filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
+		filePath := filepath.Join(uploadDir, filename)
+
+		dst, err := os.Create(filePath)
+		if err != nil {
+			file.Close()
+			errors = append(errors, fmt.Sprintf("Unable to create file for %s: %v", fileHeader.Filename, err))
+			continue
+		}
+
+		_, err = io.Copy(dst, file)
+		file.Close()
+		dst.Close()
+
+		if err != nil {
+			os.Remove(filePath)
+			errors = append(errors, fmt.Sprintf("Unable to save file %s: %v", fileHeader.Filename, err))
+			continue
+		}
+
+		var vehicleImage entity.VehicleImage
+		vehicleImage.VehicleID = id
+		vehicleImage.Filename = filename
+		vehicleImage.FilePath = filePath
+		vehicleImage.FileSize = fileHeader.Size
+		vehicleImage.MimeType = contentType
+		vehicleImage.DisplayOrder = i + 1
+		vehicleImage.IsPrimary = i == 0
+		vehicleImage.UploadDate = time.Now()
+		if err != nil {
+			// Clean up the file if database insert fails
+			os.Remove(filePath)
+			errors = append(errors, fmt.Sprintf("Database error for %s: %v", fileHeader.Filename, err))
+			continue
+		}
+
+		uploadedImages = append(uploadedImages, vehicleImage)
 	}
-	defer dst.Close()
 
-	// Copy uploaded file to destination
-	_, err = io.Copy(dst, file)
-	if err != nil {
-		http.Error(w, "Unable to save file", http.StatusInternalServerError)
-		return
+	images, err := s.vehicleService.InsertVehicleImage(r.Context(), uploadedImages)
+	// Prepare response
+	response := map[string]interface{}{
+		"uploaded_images": images,
+		"total_uploaded":  len(images),
+		"total_files":     len(files),
 	}
 
-	var vehicleImage entity.VehicleImage
-	vehicleImage.VehicleID = id
-	vehicleImage.Filename = filename
-	vehicleImage.FilePath = filePath
-	vehicleImage.FileSize = fileHeader.Size
-	vehicleImage.MimeType = contentType
-	vehicleImage.DisplayOrder = 1
-	vehicleImage.IsPrimary = true
-	vehicleImage.UploadDate = time.Now()
-
-	image, err := s.vehicleService.InsertVehicleImage(&vehicleImage)
-	if err != nil {
-		return
+	if len(errors) > 0 {
+		response["errors"] = errors
+		response["partial_success"] = true
 	}
 
-	s.writeJSON(w, http.StatusCreated, image)
+	// Return appropriate status code
+	if len(uploadedImages) == 0 {
+		// All uploads failed
+		s.writeJSON(w, http.StatusBadRequest, response)
+	} else if len(errors) > 0 {
+		// Partial success
+		s.writeJSON(w, http.StatusMultiStatus, response)
+	} else {
+		// Complete success
+		s.writeJSON(w, http.StatusCreated, response)
+	}
 }
 
 func (s *APIServer) serveImageHandler(w http.ResponseWriter, r *http.Request) {

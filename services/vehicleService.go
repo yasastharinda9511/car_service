@@ -1,349 +1,157 @@
 package services
 
 import (
-	"car_service/database"
 	"car_service/dto/request"
+	"car_service/dto/response"
 	"car_service/entity"
+
+	//"car_service/database"
+	//"car_service/dto/request"
+	//"car_service/entity"
 	"car_service/filters"
-	"fmt"
-	"strings"
-	"time"
+	"car_service/repository"
+	//"strings"
+	//"time"
+	"context"
+	"database/sql"
 
 	_ "github.com/lib/pq"
 )
 
 type VehicleService struct {
-	db *database.Database
+	db                          *sql.DB
+	vehicleRepository           *repository.VehicleRepository
+	vehicleIMageRepository      *repository.VehicleImageRepository
+	vehicleFinancialsRepository *repository.VehicleFinancialsRepository
+	vehicleShippingRepository   *repository.VehicleShippingRepository
+	vehiclePurchaseRepository   *repository.VehiclePurchaseRepository
+	vehicleSalesRepository      *repository.VehicleSalesRepository
 }
 
-func NewVehicleService(db *database.Database) *VehicleService {
-	return &VehicleService{db: db}
+func NewVehicleService(db *sql.DB) *VehicleService {
+	return &VehicleService{db: db,
+		vehicleRepository:           repository.NewVehicleRepository(),
+		vehicleIMageRepository:      repository.NewVehicleImageRepository(),
+		vehicleFinancialsRepository: repository.NewVehicleFinancialsRepository(),
+		vehiclePurchaseRepository:   repository.NewVehiclePurchaseRepository(),
+		vehicleSalesRepository:      repository.NewVehicleSalesRepository(),
+		vehicleShippingRepository:   repository.NewVehicleShippingRepository(),
+	}
 }
 
-func (s *VehicleService) GetAllVehicleCount(filter filters.Filter) (int64, error) {
-	var count int64
-	query := `SELECT COUNT(*)
-        FROM vehicles v
-        LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-        LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
-        LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-        LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id`
+func (s *VehicleService) GetAllVehicles(ctx context.Context, limit int, offset int, filter filters.Filter) (*response.VehiclesResponse, error) {
 
-	query, args := filter.GetQuery(query, "", -1, -1)
+	vehicles, err := s.vehicleRepository.GetAllVehicles(ctx, s.db, limit, offset, filter)
+	if err != nil {
+		return nil, err
+	}
 
-	err := s.db.Db.QueryRow(query, args...).Scan(&count)
+	vehicleCount, err := s.vehicleRepository.GetAllVehicleCount(ctx, s.db, filter)
+	if err != nil {
+		return nil, err
+	}
+	var vehiclesResponse response.VehiclesResponse
+	vehiclesResponse.Vehicles = vehicles
+	vehiclesResponse.Meta.Limit = limit
+	vehiclesResponse.Meta.Total = int(vehicleCount)
+	return &vehiclesResponse, nil
+}
+
+func (s *VehicleService) GetAllVehicleCount(ctx context.Context, filter filters.Filter) (int64, error) {
+
+	count, err := s.vehicleRepository.GetAllVehicleCount(ctx, s.db, filter)
 	if err != nil {
 		return 0, err
 	}
-
 	return count, nil
 }
 
-func (s *VehicleService) GetAllVehicles(limit, offset int, filter filters.Filter) ([]entity.VehicleComplete, error) {
-	query := `
-		SELECT 
-    v.id,
-    v.code,
-    v.make,
-    v.model,
-    v.trim_level,
-    v.year_of_manufacture,
-    v.color,
-    v.mileage_km,
-    v.chassis_id,
-    v.condition_status,
-    v.auction_grade,
-    v.cif_value,
-    v.currency,
-    v.created_at,
-    v.updated_at,
+func (s *VehicleService) GetVehicleByID(ctx context.Context, id int64) (*entity.VehicleComplete, error) {
+	vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, id)
 
-    COALESCE(vs.id, 0) AS vs_id,
-    COALESCE(vs.vehicle_id, 0) AS vs_vehicle_id,
-    COALESCE(vs.vessel_name, '') AS vessel_name,
-    COALESCE(vs.departure_harbour, '') AS departure_harbour,
-    COALESCE(vs.shipment_date, '1970-01-01') AS shipment_date,
-    COALESCE(vs.arrival_date, '1970-01-01') AS arrival_date,
-    COALESCE(vs.clearing_date, '1970-01-01') AS clearing_date,
-    COALESCE(vs.shipping_status, 'PROCESSING') AS shipping_status,
-
-    COALESCE(vf.id, 0) AS vf_id,
-    COALESCE(vf.vehicle_id, 0) AS vf_vehicle_id,
-    COALESCE(vf.total_cost_lkr, 0) AS total_cost_lkr,
-    COALESCE(vf.charges_lkr, 0) AS charges_lkr,
-    COALESCE(vf.duty_lkr, 0) AS duty_lkr,
-    COALESCE(vf.clearing_lkr, 0) AS clearing_lkr,
-    COALESCE(vf.other_expenses_lkr, 0) AS other_expenses_lkr,
-
-    COALESCE(vsl.id, 0) AS vsl_id,
-    COALESCE(vsl.vehicle_id, 0) AS vsl_vehicle_id,
-    COALESCE(vsl.sold_date, '1970-01-01') AS sold_date,
-    COALESCE(vsl.revenue, 0) AS revenue,
-    COALESCE(vsl.profit, 0) AS profit,
-    COALESCE(vsl.sold_to_name, '') AS sold_to_name,
-    COALESCE(vsl.sold_to_title, '') AS sold_to_title,
-    COALESCE(vsl.contact_number, '') AS contact_number,
-    COALESCE(vsl.customer_address, '') AS customer_address,
-    COALESCE(vsl.sale_status, 'AVAILABLE') AS sale_status,
-
-    COALESCE(vp.id, 0) AS vp_id,
-    COALESCE(vp.vehicle_id, 0) AS vp_vehicle_id,
-    COALESCE(vp.bought_from_name, '') AS bought_from_name,
-    COALESCE(vp.bought_from_title, '') AS bought_from_title,
-    COALESCE(vp.bought_from_contact, '') AS bought_from_contact,
-    COALESCE(vp.bought_from_address, '') AS bought_from_address,
-    COALESCE(vp.bought_from_other_contacts, '') AS bought_from_other_contacts,
-    COALESCE(vp.purchase_remarks, '') AS purchase_remarks,
-    COALESCE(vp.lc_bank, '') AS lc_bank,
-    COALESCE(vp.lc_number, '') AS lc_number,
-    COALESCE(vp.lc_cost_jpy, 0) AS lc_cost_jpy,
-    COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date,
-
-    COALESCE(vi.id, 0) AS vi_id,
-    COALESCE(vi.vehicle_id, 0) AS vi_vehicle_id,
-    COALESCE(vi.filename, '') AS filename,
-    COALESCE(vi.original_name, '') AS original_name,
-    COALESCE(vi.file_path, '') AS file_path,
-    COALESCE(vi.file_size, 0) AS file_size,
-    COALESCE(vi.mime_type, '') AS mime_type,
-    COALESCE(vi.is_primary, false) AS is_primary,
-    COALESCE(vi.upload_date, '1970-01-01') AS upload_date,
-    COALESCE(vi.display_order, 0) AS display_order
-
-FROM vehicles v
-LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
-LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
-LEFT JOIN vehicle_images vi ON v.id = vi.vehicle_id
-	`
-
-	query, args := filter.GetQuery(query, "", limit, offset)
-	fmt.Printf(query, args)
-
-	rows, err := s.db.Db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var vehicles []entity.VehicleComplete
-	for rows.Next() {
-		var vc entity.VehicleComplete
-		err := rows.Scan(
-			&vc.Vehicle.ID, &vc.Vehicle.Code, &vc.Vehicle.Make, &vc.Vehicle.Model, &vc.Vehicle.TrimLevel, &vc.Vehicle.YearOfManufacture,
-			&vc.Vehicle.Color, &vc.Vehicle.MileageKm, &vc.Vehicle.ChassisID, &vc.Vehicle.ConditionStatus, &vc.Vehicle.AuctionGrade,
-			&vc.Vehicle.CIFValue, &vc.Vehicle.Currency, &vc.Vehicle.CreatedAt, &vc.Vehicle.UpdatedAt,
+	shipping, err := s.vehicleShippingRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+	if err != nil {
+		return nil, err
+	}
 
-			&vc.VehicleShipping.ID, &vc.VehicleShipping.VehicleID, &vc.VehicleShipping.VesselName, &vc.VehicleShipping.DepartureHarbour, &vc.VehicleShipping.ShipmentDate, &vc.VehicleShipping.ArrivalDate,
-			&vc.VehicleShipping.ClearingDate, &vc.VehicleShipping.ShippingStatus,
+	purchase, err := s.vehiclePurchaseRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+	if err != nil {
+		return nil, err
+	}
 
-			&vc.VehicleFinancials.ID, &vc.VehicleFinancials.VehicleID, &vc.VehicleFinancials.TotalCostLKR, &vc.VehicleFinancials.ChargesLKR, &vc.VehicleFinancials.DutyLKR, &vc.VehicleFinancials.ClearingLKR, &vc.VehicleFinancials.OtherExpensesLKR,
+	finance, err := s.vehicleFinancialsRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+	if err != nil {
+		return nil, err
+	}
 
-			&vc.VehicleSales.ID, &vc.VehicleSales.VehicleID, &vc.VehicleSales.SoldDate, &vc.VehicleSales.Revenue, &vc.VehicleSales.Profit, &vc.VehicleSales.SoldToName, &vc.VehicleSales.SoldToTitle,
-			&vc.VehicleSales.ContactNumber, &vc.VehicleSales.CustomerAddress, &vc.VehicleSales.SaleStatus,
+	sales, err := s.vehicleSalesRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+	if err != nil {
+		return nil, err
+	}
 
-			&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID, &vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
-			&vc.VehiclePurchase.BoughtFromContact, &vc.VehiclePurchase.BoughtFromAddress, &vc.VehiclePurchase.BoughtFromOtherContacts,
-			&vc.VehiclePurchase.PurchaseRemarks, &vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber, &vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
+	images, err := s.vehicleIMageRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+	var vehicleComplete entity.VehicleComplete
 
-			&vc.VehicleImage.ID, &vc.VehicleImage.VehicleID,
-			&vc.VehicleImage.Filename, &vc.VehicleImage.OriginalName,
-			&vc.VehicleImage.FilePath, &vc.VehicleImage.FileSize,
-			&vc.VehicleImage.MimeType, &vc.VehicleImage.IsPrimary,
-			&vc.VehicleImage.UploadDate, &vc.VehicleImage.DisplayOrder,
-		)
+	vehicleComplete.Vehicle = *vehicle
+	vehicleComplete.VehicleShipping = *shipping
+	vehicleComplete.VehiclePurchase = *purchase
+	vehicleComplete.VehicleFinancials = *finance
+	vehicleComplete.VehicleSales = *sales
+	vehicleComplete.VehicleImages = images
+
+	return &vehicleComplete, nil
+}
+
+func (s *VehicleService) InsertVehicleImage(ctx context.Context, vehicleImage []entity.VehicleImage) ([]entity.VehicleImage, error) {
+
+	var vehicleImages []entity.VehicleImage
+	for _, image := range vehicleImage {
+		vehicleImage, err := s.vehicleIMageRepository.InsertVehicleImage(ctx, s.db, &image)
+		vehicleImages = append(vehicleImages, *vehicleImage)
 		if err != nil {
 			return nil, err
 		}
-		vehicles = append(vehicles, vc)
 	}
 
-	return vehicles, nil
+	return vehicleImages, nil
 }
 
-func (s *VehicleService) GetVehicleByID(id int64) (*entity.VehicleComplete, error) {
-	query := `
-	SELECT 
-    v.id,
-    v.code,
-    v.make,
-    v.model,
-    v.trim_level,
-    v.year_of_manufacture,
-    v.color,
-    v.mileage_km,
-    v.chassis_id,
-    v.condition_status,
-    v.auction_grade,
-    v.cif_value,
-    v.currency,
-    v.created_at,
-    v.updated_at,
-
-    COALESCE(vs.id, 0) AS vs_id,
-    COALESCE(vs.vehicle_id, 0) AS vs_vehicle_id,
-    COALESCE(vs.vessel_name, '') AS vessel_name,
-    COALESCE(vs.departure_harbour, '') AS departure_harbour,
-    COALESCE(vs.shipment_date, '1970-01-01') AS shipment_date,
-    COALESCE(vs.arrival_date, '1970-01-01') AS arrival_date,
-    COALESCE(vs.clearing_date, '1970-01-01') AS clearing_date,
-    COALESCE(vs.shipping_status, 'PROCESSING') AS shipping_status,
-
-    COALESCE(vf.id, 0) AS vf_id,
-    COALESCE(vf.vehicle_id, 0) AS vf_vehicle_id,
-    COALESCE(vf.total_cost_lkr, 0) AS total_cost_lkr,
-    COALESCE(vf.charges_lkr, 0) AS charges_lkr,
-    COALESCE(vf.duty_lkr, 0) AS duty_lkr,
-    COALESCE(vf.clearing_lkr, 0) AS clearing_lkr,
-    COALESCE(vf.other_expenses_lkr, 0) AS other_expenses_lkr,
-
-    COALESCE(vsl.id, 0) AS vsl_id,
-    COALESCE(vsl.vehicle_id, 0) AS vsl_vehicle_id,
-    COALESCE(vsl.sold_date, '1970-01-01') AS sold_date,
-    COALESCE(vsl.revenue, 0) AS revenue,
-    COALESCE(vsl.profit, 0) AS profit,
-    COALESCE(vsl.sold_to_name, '') AS sold_to_name,
-    COALESCE(vsl.sold_to_title, '') AS sold_to_title,
-    COALESCE(vsl.contact_number, '') AS contact_number,
-    COALESCE(vsl.customer_address, '') AS customer_address,
-    COALESCE(vsl.sale_status, 'AVAILABLE') AS sale_status,
-
-    COALESCE(vp.id, 0) AS vp_id,
-    COALESCE(vp.vehicle_id, 0) AS vp_vehicle_id,
-    COALESCE(vp.bought_from_name, '') AS bought_from_name,
-    COALESCE(vp.bought_from_title, '') AS bought_from_title,
-    COALESCE(vp.bought_from_contact, '') AS bought_from_contact,
-    COALESCE(vp.bought_from_address, '') AS bought_from_address,
-    COALESCE(vp.bought_from_other_contacts, '') AS bought_from_other_contacts,
-    COALESCE(vp.purchase_remarks, '') AS purchase_remarks,
-    COALESCE(vp.lc_bank, '') AS lc_bank,
-    COALESCE(vp.lc_number, '') AS lc_number,
-    COALESCE(vp.lc_cost_jpy, 0) AS lc_cost_jpy,
-    COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date,
-
-    COALESCE(vi.id, 0) AS vi_id,
-    COALESCE(vi.vehicle_id, 0) AS vi_vehicle_id,
-    COALESCE(vi.filename, '') AS filename,
-    COALESCE(vi.original_name, '') AS original_name,
-    COALESCE(vi.file_path, '') AS file_path,
-    COALESCE(vi.file_size, 0) AS file_size,
-    COALESCE(vi.mime_type, '') AS mime_type,
-    COALESCE(vi.is_primary, false) AS is_primary,
-    COALESCE(vi.upload_date, '1970-01-01') AS upload_date,
-    COALESCE(vi.display_order, 0) AS display_order
-	
-	FROM vehicles v
-	LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-	LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
-	LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-	LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
-	LEFT JOIN vehicle_images vi ON v.id = vi.vehicle_id
-	WHERE v.id = $1
-	`
-
-	var vc entity.VehicleComplete
-	err := s.db.Db.QueryRow(query, id).Scan(
-		&vc.Vehicle.ID, &vc.Vehicle.Code, &vc.Vehicle.Make, &vc.Vehicle.Model, &vc.Vehicle.TrimLevel, &vc.Vehicle.YearOfManufacture,
-		&vc.Vehicle.Color, &vc.Vehicle.MileageKm, &vc.Vehicle.ChassisID, &vc.Vehicle.ConditionStatus, &vc.Vehicle.AuctionGrade,
-		&vc.Vehicle.CIFValue, &vc.Vehicle.Currency, &vc.Vehicle.CreatedAt, &vc.Vehicle.UpdatedAt,
-
-		&vc.VehicleShipping.ID, &vc.VehicleShipping.VehicleID, &vc.VehicleShipping.VesselName, &vc.VehicleShipping.DepartureHarbour, &vc.VehicleShipping.ShipmentDate, &vc.VehicleShipping.ArrivalDate,
-		&vc.VehicleShipping.ClearingDate, &vc.VehicleShipping.ShippingStatus,
-
-		&vc.VehicleFinancials.ID, &vc.VehicleFinancials.VehicleID, &vc.VehicleFinancials.TotalCostLKR, &vc.VehicleFinancials.ChargesLKR, &vc.VehicleFinancials.DutyLKR, &vc.VehicleFinancials.ClearingLKR, &vc.VehicleFinancials.OtherExpensesLKR,
-
-		&vc.VehicleSales.ID, &vc.VehicleSales.VehicleID, &vc.VehicleSales.SoldDate, &vc.VehicleSales.Revenue, &vc.VehicleSales.Profit, &vc.VehicleSales.SoldToName, &vc.VehicleSales.SoldToTitle,
-		&vc.VehicleSales.ContactNumber, &vc.VehicleSales.CustomerAddress, &vc.VehicleSales.SaleStatus,
-
-		&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID, &vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
-		&vc.VehiclePurchase.BoughtFromContact, &vc.VehiclePurchase.BoughtFromAddress, &vc.VehiclePurchase.BoughtFromOtherContacts,
-		&vc.VehiclePurchase.PurchaseRemarks, &vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber, &vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
-
-		&vc.VehicleImage.ID, &vc.VehicleImage.VehicleID,
-		&vc.VehicleImage.Filename, &vc.VehicleImage.OriginalName,
-		&vc.VehicleImage.FilePath, &vc.VehicleImage.FileSize,
-		&vc.VehicleImage.MimeType, &vc.VehicleImage.IsPrimary,
-		&vc.VehicleImage.UploadDate, &vc.VehicleImage.DisplayOrder,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &vc, nil
-}
-
-func (s *VehicleService) InsertVehicleImage(vehicleImage *entity.VehicleImage) (*entity.VehicleImage, error) {
-	query := `
-        INSERT INTO vehicle_images (vehicle_id, filename, original_name, file_path, file_size, mime_type, is_primary, display_order)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING id, upload_date`
-
-	err := s.db.Db.QueryRow(query, vehicleImage.VehicleID, vehicleImage.Filename, vehicleImage.OriginalName, vehicleImage.FilePath, vehicleImage.FileSize, vehicleImage.MimeType, vehicleImage.IsPrimary, vehicleImage.DisplayOrder).Scan(&vehicleImage.ID, &vehicleImage.UploadDate)
-	if err != nil {
-		return nil, err
-	}
-
-	return vehicleImage, nil
-}
-
-func (s *VehicleService) CreateVehicle(req request.CreateVehicleRequest) (*entity.Vehicle, error) {
+func (s *VehicleService) CreateVehicle(ctx context.Context, req request.CreateVehicleRequest) (*entity.Vehicle, error) {
 	// Start transaction
-	tx, err := s.db.Db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback() // Will be ignored if tx is committed
 
-	// Insert vehicle
-	var vehicleID int64
-	vehicleQuery := `
-        INSERT INTO vehicles (code, make, model, trim_level, year_of_manufacture, color, 
-            mileage_km, chassis_id, condition_status, auction_grade, cif_value, currency)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING id
-    `
+	vehicleID, err := s.vehicleRepository.Insert(ctx, tx, req)
 
-	err = tx.QueryRow(vehicleQuery, req.Code, req.Make, req.Model, req.TrimLevel,
-		req.YearOfManufacture, req.Color, req.MileageKm, req.ChassisID,
-		req.ConditionStatus, req.AuctionGrade, req.CIFValue, req.Currency).Scan(&vehicleID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Insert default shipping record
-	_, err = tx.Exec(`
-        INSERT INTO vehicle_shipping (vehicle_id, shipping_status) 
-        VALUES ($1, 'PROCESSING')
-    `, vehicleID)
+	err = s.vehicleShippingRepository.InsertDefault(ctx, tx, vehicleID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Insert default financial record with zero costs
-	_, err = tx.Exec(`
-        INSERT INTO vehicle_financials (vehicle_id, charges_lkr, tt_lkr, duty_lkr, 
-            clearing_lkr, other_expenses_lkr, total_cost_lkr) 
-        VALUES ($1, 0, 0, 0, 0, 0, 0)
-    `, vehicleID)
+	err = s.vehicleFinancialsRepository.InsertDefault(ctx, tx, vehicleID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Insert default sales record
-	_, err = tx.Exec(`
-        INSERT INTO vehicle_sales (vehicle_id, sale_status) 
-        VALUES ($1, 'AVAILABLE')
-    `, vehicleID)
+	err = s.vehicleSalesRepository.InsertDefault(ctx, tx, vehicleID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Insert default purchase record (can be updated later)
-	_, err = tx.Exec(`
-        INSERT INTO vehicle_purchases (vehicle_id) 
-        VALUES ($1)
-    `, vehicleID)
+	err = s.vehiclePurchaseRepository.InsertDefault(ctx, tx, vehicleID)
 	if err != nil {
 		return nil, err
 	}
@@ -354,21 +162,7 @@ func (s *VehicleService) CreateVehicle(req request.CreateVehicleRequest) (*entit
 		return nil, err
 	}
 
-	// Fetch the complete vehicle record
-	vehicle := &entity.Vehicle{}
-	selectQuery := `
-        SELECT id, code, make, model, trim_level, year_of_manufacture, color, 
-            mileage_km, chassis_id, condition_status, auction_grade, cif_value, currency, 
-            created_at, updated_at 
-        FROM vehicles WHERE id = $1
-    `
-
-	err = s.db.Db.QueryRow(selectQuery, vehicleID).Scan(
-		&vehicle.ID, &vehicle.Code, &vehicle.Make, &vehicle.Model, &vehicle.TrimLevel,
-		&vehicle.YearOfManufacture, &vehicle.Color, &vehicle.MileageKm, &vehicle.ChassisID,
-		&vehicle.ConditionStatus, &vehicle.AuctionGrade, &vehicle.CIFValue, &vehicle.Currency,
-		&vehicle.CreatedAt, &vehicle.UpdatedAt,
-	)
+	vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, vehicleID)
 	if err != nil {
 		return nil, err
 	}
@@ -376,295 +170,206 @@ func (s *VehicleService) CreateVehicle(req request.CreateVehicleRequest) (*entit
 	return vehicle, nil
 }
 
-func (s *VehicleService) UpdateShippingStatus(vehicleID int64, detailsRequest request.ShippingDetailsRequest) error {
-	query := `
-        UPDATE vehicle_shipping 
-        SET vessel_name = $2,
-            departure_harbour = $3,
-            shipment_date = $4,
-            arrival_date = $5,
-            clearing_date = $6,
-            shipping_status = $7,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE vehicle_id = $1
-    `
+func (s *VehicleService) UpdateShippingStatus(ctx context.Context, vehicleID int64, detailsRequest request.ShippingDetailsRequest) error {
+	err := s.vehicleShippingRepository.UpdateShippingStatus(ctx, s.db, vehicleID, detailsRequest)
+	return err
 
-	_, err := s.db.Db.Exec(query, vehicleID, detailsRequest.VesselName, detailsRequest.DepartureHarbour,
-		detailsRequest.ShipmentDate, detailsRequest.ArrivalDate, detailsRequest.ClearingDate, detailsRequest.ShippingStatus)
+}
+
+func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, purchaseRequest *request.PurchaseRequest) error {
+
+	err := s.vehiclePurchaseRepository.UpdateVehiclePurchase(ctx, s.db, id, purchaseRequest)
 	return err
 }
 
-func (s *VehicleService) UpdatePurchaseDetails(vehicleID int64, boughtFromName, boughtFromTitle,
-	boughtFromContact, boughtFromAddress, boughtFromOtherContacts, purchaseRemarks,
-	lcBank, lcNumber *string, lcCostJPY *float64, purchaseDate *time.Time) error {
+func (s *VehicleService) UpdateFinancialDetails(ctx context.Context, vehicleID int64, detailsRequest *request.FinancialDetailsRequest) error {
 
-	query := `
-        UPDATE vehicle_purchases 
-        SET bought_from_name = $2,
-            bought_from_title = $3,
-            bought_from_contact = $4,
-            bought_from_address = $5,
-            bought_from_other_contacts = $6,
-            purchase_remarks = $7,
-            lc_bank = $8,
-            lc_number = $9,
-            lc_cost_jpy = $10,
-            purchase_date = $11,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE vehicle_id = $1
-    `
-
-	_, err := s.db.Db.Exec(query, vehicleID, boughtFromName, boughtFromTitle,
-		boughtFromContact, boughtFromAddress, boughtFromOtherContacts, purchaseRemarks,
-		lcBank, lcNumber, lcCostJPY, purchaseDate)
+	err := s.vehicleFinancialsRepository.UpdateFinancialDetails(ctx, s.db, vehicleID, detailsRequest)
 	return err
 }
 
-func (s *VehicleService) UpdateFinancialDetails(vehicleID int64, chargesLKR, ttLKR,
-	dutyLKR, clearingLKR, otherExpensesLKR *float64, totalCostLKR float64) error {
+func (s *VehicleService) UpdateSalesDetails(ctx context.Context, vehicleID int64, req *request.SalesDetailsRequest) error {
 
-	query := `
-        UPDATE vehicle_financials 
-        SET charges_lkr = $2,
-            tt_lkr = $3,
-            duty_lkr = $4,
-            clearing_lkr = $5,
-            other_expenses_lkr = $6,
-            total_cost_lkr = $7,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE vehicle_id = $1
-    `
+	err := s.vehicleSalesRepository.UpdateSalesDetails(ctx, s.db, vehicleID, req)
+	return err
 
-	_, err := s.db.Db.Exec(query, vehicleID, chargesLKR, ttLKR, dutyLKR,
-		clearingLKR, otherExpensesLKR, totalCostLKR)
+}
+
+func (s *VehicleService) UpdateVehicleDetails(ctx context.Context, vehicleID int64, req *request.UpdateVehicleRequest) error {
+
+	err := s.vehicleRepository.UpdateVehicleDetails(ctx, s.db, vehicleID, req)
 	return err
 }
 
-func (s *VehicleService) UpdateSalesDetails(vehicleID int64, req request.SalesDetailsRequest) error {
-
-	query := `
-        UPDATE vehicle_sales 
-        SET sold_date = $2,
-            revenue = $3,
-            profit = $4,
-            sold_to_name = $5,
-            sold_to_title = $6,
-            contact_number = $7,
-            customer_address = $8,
-            other_contacts = $9,
-            sale_remarks = $10,
-            sale_status = $11,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE vehicle_id = $1
-    `
-
-	_, err := s.db.Db.Exec(query, vehicleID, req.SoldDate, req.Revenue, req.Profit, req.SoldToName,
-		req.SoldToTitle, req.ContactNumber, req.CustomerAddress, req.OtherContacts, req.SaleRemarks, req.SaleStatus)
-	return err
-}
-
-func (s *VehicleService) UpdateVehicleDetails(vehicleID int64, req *request.UpdateVehicleRequest) error {
-
-	query := `
-        UPDATE vehicles 
-        SET code = COALESCE($2, code),
-            make = COALESCE($3, make),
-            model = COALESCE($4, model),
-            trim_level = COALESCE($5, trim_level),
-            year_of_manufacture = COALESCE($6, year_of_manufacture),
-            color = COALESCE($7, color),
-            mileage_km = COALESCE($8, mileage_km),
-            chassis_id = COALESCE($9, chassis_id),
-            condition_status = COALESCE($10, condition_status),
-            year_of_registration = COALESCE($11, year_of_registration),
-            license_plate = COALESCE($12, license_plate),
-            auction_grade = COALESCE($13, auction_grade),
-            auction_price = COALESCE($14, auction_price),
-            cif_value = COALESCE($15, cif_value),
-            currency = COALESCE($16, currency),
-            hs_code = COALESCE($17, hs_code),
-            invoice_fob_jpy = COALESCE($18, invoice_fob_jpy),
-            registration_number = COALESCE($19, registration_number),
-            record_date = COALESCE($20, record_date),
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-    `
-
-	_, err := s.db.Db.Exec(query, vehicleID, req.Code, req.Make, req.Model, req.TrimLevel,
-		req.YearOfManufacture, req.Color, req.MileageKm, req.ChassisID, req.ConditionStatus,
-		req.YearOfRegistration, req.LicensePlate, req.AuctionGrade, req.AuctionPrice, req.CIFValue,
-		req.Currency, req.HSCode, req.InvoiceFOBJPY, req.RegistrationNumber, req.RecordDate)
-	return err
-}
-
-func (s *VehicleService) CreateVehicleMake(vehicleMake request.CreateVehicleMake) (*entity.VehicleMake, error) {
-	query := `
-        INSERT INTO vehicle_makes (make_name, country_origin, is_active)
-        VALUES ($1, $2, $3)
-        RETURNING id, make_name, country_origin, is_active, created_at
-    `
-
-	var make entity.VehicleMake
-	err := s.db.Db.QueryRow(query, vehicleMake.MakeName, vehicleMake.CountryOrigin, vehicleMake.IsActive).Scan(
-		&make.ID, &make.MakeName, &make.CountryOrigin, &make.IsActive, &make.CreatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &make, nil
-}
-
-func (s *VehicleService) GetAllVehicleMakes(activeOnly bool) ([]entity.VehicleMake, error) {
-	query := `SELECT id, make_name, country_origin, is_active, created_at FROM vehicle_makes`
-	if activeOnly {
-		query += ` WHERE is_active = true`
-	}
-	query += ` ORDER BY make_name`
-
-	rows, err := s.db.Db.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var makes []entity.VehicleMake
-	for rows.Next() {
-		var make entity.VehicleMake
-		err := rows.Scan(&make.ID, &make.MakeName, &make.CountryOrigin, &make.IsActive, &make.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		makes = append(makes, make)
-	}
-
-	return makes, nil
-}
-
-func (s *VehicleService) UpdateVehicleMake(id int, makeName, countryOrigin *string, isActive *bool) error {
-	query := `
-        UPDATE vehicle_makes 
-        SET make_name = COALESCE($2, make_name),
-            country_origin = COALESCE($3, country_origin),
-            is_active = COALESCE($4, is_active)
-        WHERE id = $1
-    `
-
-	_, err := s.db.Db.Exec(query, id, makeName, countryOrigin, isActive)
-	return err
-}
-
-// Vehicle Model Service Methods
-func (s *VehicleService) CreateVehicleModel(req request.CreateVehicleModel) (*entity.VehicleModel, error) {
-
-	query := `
-        INSERT INTO vehicle_models (make_id, model_name, body_type, fuel_type, transmission_type, engine_size_cc, is_active)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, make_id, model_name, body_type, fuel_type, transmission_type, engine_size_cc, is_active, created_at
-    `
-
-	var model entity.VehicleModel
-	err := s.db.Db.QueryRow(query, req.MakeID, req.ModelName, req.BodyType, req.FuelType, req.TransmissionType, req.EngineSizeCC, req.IsActive).Scan(
-		&model.ID, &model.MakeID, &model.ModelName, &model.BodyType, &model.FuelType,
-		&model.TransmissionType, &model.EngineSizeCC, &model.IsActive, &model.CreatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &model, nil
-}
-
-func (s *VehicleService) GetVehicleModels(makeID *int, activeOnly bool) ([]entity.VehicleModelWithMake, error) {
-	query := `
-        SELECT vm.id, vm.make_id, vm.model_name, vm.body_type, vm.fuel_type, 
-               vm.transmission_type, vm.engine_size_cc, vm.is_active, vm.created_at,
-               vma.make_name
-        FROM vehicle_models vm
-        JOIN vehicle_makes vma ON vm.make_id = vma.id
-    `
-
-	var args []interface{}
-	var conditions []string
-
-	if makeID != nil {
-		conditions = append(conditions, "vm.make_id = $1")
-		args = append(args, *makeID)
-	}
-
-	if activeOnly {
-		if len(args) > 0 {
-			conditions = append(conditions, "vm.is_active = $2")
-		} else {
-			conditions = append(conditions, "vm.is_active = $1")
-		}
-		args = append(args, true)
-	}
-
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	query += " ORDER BY vma.make_name, vm.model_name"
-
-	rows, err := s.db.Db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var models []entity.VehicleModelWithMake
-	for rows.Next() {
-		var model entity.VehicleModelWithMake
-		err := rows.Scan(&model.ID, &model.MakeID, &model.ModelName, &model.BodyType,
-			&model.FuelType, &model.TransmissionType, &model.EngineSizeCC, &model.IsActive,
-			&model.CreatedAt, &model.MakeName)
-		if err != nil {
-			return nil, err
-		}
-		models = append(models, model)
-	}
-
-	return models, nil
-}
-
-func (s *VehicleService) GetVehicleModelByID(id int) (*entity.VehicleModelWithMake, error) {
-	query := `
-        SELECT vm.id, vm.make_id, vm.model_name, vm.body_type, vm.fuel_type, 
-               vm.transmission_type, vm.engine_size_cc, vm.is_active, vm.created_at,
-               vma.make_name
-        FROM vehicle_models vm
-        JOIN vehicle_makes vma ON vm.make_id = vma.id
-        WHERE vm.id = $1
-    `
-
-	var model entity.VehicleModelWithMake
-	err := s.db.Db.QueryRow(query, id).Scan(
-		&model.ID, &model.MakeID, &model.ModelName, &model.BodyType,
-		&model.FuelType, &model.TransmissionType, &model.EngineSizeCC,
-		&model.IsActive, &model.CreatedAt, &model.MakeName,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &model, nil
-}
-
-func (s *VehicleService) UpdateVehicleModel(id int, modelName, bodyType, fuelType,
-	transmissionType *string, engineSizeCC *int, isActive *bool) error {
-
-	query := `
-        UPDATE vehicle_models 
-        SET model_name = COALESCE($2, model_name),
-            body_type = COALESCE($3, body_type),
-            fuel_type = COALESCE($4, fuel_type),
-            transmission_type = COALESCE($5, transmission_type),
-            engine_size_cc = COALESCE($6, engine_size_cc),
-            is_active = COALESCE($7, is_active)
-        WHERE id = $1
-    `
-
-	_, err := s.db.Db.Exec(query, id, modelName, bodyType, fuelType, transmissionType, engineSizeCC, isActive)
-	return err
-}
+//
+//func (s *VehicleService) CreateVehicleMake(vehicleMake request.CreateVehicleMake) (*entity.VehicleMake, error) {
+//	query := `
+//        INSERT INTO vehicle_makes (make_name, country_origin, is_active)
+//        VALUES ($1, $2, $3)
+//        RETURNING id, make_name, country_origin, is_active, created_at
+//    `
+//
+//	var make entity.VehicleMake
+//	err := s.db.Db.QueryRow(query, vehicleMake.MakeName, vehicleMake.CountryOrigin, vehicleMake.IsActive).Scan(
+//		&make.ID, &make.MakeName, &make.CountryOrigin, &make.IsActive, &make.CreatedAt,
+//	)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	return &make, nil
+//}
+//
+//func (s *VehicleService) GetAllVehicleMakes(activeOnly bool) ([]entity.VehicleMake, error) {
+//	query := `SELECT id, make_name, country_origin, is_active, created_at FROM vehicle_makes`
+//	if activeOnly {
+//		query += ` WHERE is_active = true`
+//	}
+//	query += ` ORDER BY make_name`
+//
+//	rows, err := s.db.Db.Query(query)
+//	if err != nil {
+//		return nil, err
+//	}
+//	defer rows.Close()
+//
+//	var makes []entity.VehicleMake
+//	for rows.Next() {
+//		var make entity.VehicleMake
+//		err := rows.Scan(&make.ID, &make.MakeName, &make.CountryOrigin, &make.IsActive, &make.CreatedAt)
+//		if err != nil {
+//			return nil, err
+//		}
+//		makes = append(makes, make)
+//	}
+//
+//	return makes, nil
+//}
+//
+//func (s *VehicleService) UpdateVehicleMake(id int, makeName, countryOrigin *string, isActive *bool) error {
+//	query := `
+//        UPDATE vehicle_makes
+//        SET make_name = COALESCE($2, make_name),
+//            country_origin = COALESCE($3, country_origin),
+//            is_active = COALESCE($4, is_active)
+//        WHERE id = $1
+//    `
+//
+//	_, err := s.db.Db.Exec(query, id, makeName, countryOrigin, isActive)
+//	return err
+//}
+//
+//// Vehicle Model Service Methods
+//func (s *VehicleService) CreateVehicleModel(req request.CreateVehicleModel) (*entity.VehicleModel, error) {
+//
+//	query := `
+//        INSERT INTO vehicle_models (make_id, model_name, body_type, fuel_type, transmission_type, engine_size_cc, is_active)
+//        VALUES ($1, $2, $3, $4, $5, $6, $7)
+//        RETURNING id, make_id, model_name, body_type, fuel_type, transmission_type, engine_size_cc, is_active, created_at
+//    `
+//
+//	var model entity.VehicleModel
+//	err := s.db.Db.QueryRow(query, req.MakeID, req.ModelName, req.BodyType, req.FuelType, req.TransmissionType, req.EngineSizeCC, req.IsActive).Scan(
+//		&model.ID, &model.MakeID, &model.ModelName, &model.BodyType, &model.FuelType,
+//		&model.TransmissionType, &model.EngineSizeCC, &model.IsActive, &model.CreatedAt,
+//	)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	return &model, nil
+//}
+//
+//func (s *VehicleService) GetVehicleModels(makeID *int, activeOnly bool) ([]entity.VehicleModelWithMake, error) {
+//	query := `
+//        SELECT vm.id, vm.make_id, vm.model_name, vm.body_type, vm.fuel_type,
+//               vm.transmission_type, vm.engine_size_cc, vm.is_active, vm.created_at,
+//               vma.make_name
+//        FROM vehicle_models vm
+//        JOIN vehicle_makes vma ON vm.make_id = vma.id
+//    `
+//
+//	var args []interface{}
+//	var conditions []string
+//
+//	if makeID != nil {
+//		conditions = append(conditions, "vm.make_id = $1")
+//		args = append(args, *makeID)
+//	}
+//
+//	if activeOnly {
+//		if len(args) > 0 {
+//			conditions = append(conditions, "vm.is_active = $2")
+//		} else {
+//			conditions = append(conditions, "vm.is_active = $1")
+//		}
+//		args = append(args, true)
+//	}
+//
+//	if len(conditions) > 0 {
+//		query += " WHERE " + strings.Join(conditions, " AND ")
+//	}
+//
+//	query += " ORDER BY vma.make_name, vm.model_name"
+//
+//	rows, err := s.db.Db.Query(query, args...)
+//	if err != nil {
+//		return nil, err
+//	}
+//	defer rows.Close()
+//
+//	var models []entity.VehicleModelWithMake
+//	for rows.Next() {
+//		var model entity.VehicleModelWithMake
+//		err := rows.Scan(&model.ID, &model.MakeID, &model.ModelName, &model.BodyType,
+//			&model.FuelType, &model.TransmissionType, &model.EngineSizeCC, &model.IsActive,
+//			&model.CreatedAt, &model.MakeName)
+//		if err != nil {
+//			return nil, err
+//		}
+//		models = append(models, model)
+//	}
+//
+//	return models, nil
+//}
+//
+//func (s *VehicleService) GetVehicleModelByID(id int) (*entity.VehicleModelWithMake, error) {
+//	query := `
+//        SELECT vm.id, vm.make_id, vm.model_name, vm.body_type, vm.fuel_type,
+//               vm.transmission_type, vm.engine_size_cc, vm.is_active, vm.created_at,
+//               vma.make_name
+//        FROM vehicle_models vm
+//        JOIN vehicle_makes vma ON vm.make_id = vma.id
+//        WHERE vm.id = $1
+//    `
+//
+//	var model entity.VehicleModelWithMake
+//	err := s.db.Db.QueryRow(query, id).Scan(
+//		&model.ID, &model.MakeID, &model.ModelName, &model.BodyType,
+//		&model.FuelType, &model.TransmissionType, &model.EngineSizeCC,
+//		&model.IsActive, &model.CreatedAt, &model.MakeName,
+//	)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	return &model, nil
+//}
+//
+//func (s *VehicleService) UpdateVehicleModel(id int, modelName, bodyType, fuelType,
+//	transmissionType *string, engineSizeCC *int, isActive *bool) error {
+//
+//	query := `
+//        UPDATE vehicle_models
+//        SET model_name = COALESCE($2, model_name),
+//            body_type = COALESCE($3, body_type),
+//            fuel_type = COALESCE($4, fuel_type),
+//            transmission_type = COALESCE($5, transmission_type),
+//            engine_size_cc = COALESCE($6, engine_size_cc),
+//            is_active = COALESCE($7, is_active)
+//        WHERE id = $1
+//    `
+//
+//	_, err := s.db.Db.Exec(query, id, modelName, bodyType, fuelType, transmissionType, engineSizeCC, isActive)
+//	return err
+//}

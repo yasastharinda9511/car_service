@@ -3,10 +3,10 @@ package database
 import "database/sql"
 
 type Database struct {
-	Db *sql.DB
+	db *sql.DB
 }
 
-func NewDatabase(driver string, dsn string) (*Database, error) {
+func NewDatabase(driver string, dsn string) (*sql.DB, error) {
 	db, err := sql.Open(driver, dsn)
 	if err != nil {
 		return nil, err
@@ -16,9 +16,9 @@ func NewDatabase(driver string, dsn string) (*Database, error) {
 		return nil, err
 	}
 
-	return &Database{Db: db}, nil
+	return db, nil
 }
 
 func (d *Database) Close() error {
-	return d.Db.Close()
+	return d.db.Close()
 }
