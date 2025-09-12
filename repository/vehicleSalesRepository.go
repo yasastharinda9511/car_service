@@ -3,6 +3,7 @@ package repository
 import (
 	"car_service/dto/request"
 	"car_service/entity"
+	"car_service/filters"
 	"context"
 	"database/sql"
 
@@ -61,4 +62,39 @@ func (r *VehicleSalesRepository) UpdateSalesDetails(ctx context.Context, exec da
 	_, err := exec.ExecContext(ctx, query, vehicleID, req.SoldDate, req.Revenue, req.Profit, req.SoldToName,
 		req.SoldToTitle, req.ContactNumber, req.CustomerAddress, req.OtherContacts, req.SaleRemarks, req.SaleStatus)
 	return err
+}
+
+func (r *VehicleSalesRepository) GetSalesStustVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) (map[string]int, error) {
+	query := `SELECT 
+    sale_status,
+    COUNT(*) as vehicle_count
+	FROM vehicle_sales vsl`
+
+	query, args := filter.GetQuery(query, "vsl.sale_status", "", -1, -1)
+	rows, err := exec.QueryContext(ctx, query, args...)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := make(map[string]int)
+
+	for rows.Next() {
+		var status string
+		var count int
+
+		err := rows.Scan(&status, &count)
+		if err != nil {
+			return nil, err
+		}
+
+		results[status] = count
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }

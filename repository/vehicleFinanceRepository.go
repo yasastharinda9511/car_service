@@ -3,7 +3,9 @@ package repository
 import (
 	"car_service/database"
 	"car_service/dto/request"
+	"car_service/dto/response"
 	"car_service/entity"
+	"car_service/filters"
 	"context"
 	"database/sql"
 )
@@ -58,5 +60,33 @@ func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context
 	_, err := exec.ExecContext(ctx, query, vehicleID, request.ChargesLKR, request.TTLKR, request.DutyLKR,
 		request.ClearingLKR, request.OtherExpensesLKR, request.TotalCostLKR)
 	return err
+
+}
+func (r *VehicleFinancialsRepository) GetDetailedFinancialSummary(ctx context.Context, exec database.Executor, filter filters.Filter) (*response.DetailedFinancialSummary, error) {
+	query := `SELECT 
+        COALESCE(SUM(charges_lkr), 0) as total_charges,
+        COALESCE(SUM(tt_lkr), 0) as total_tt,
+        COALESCE(SUM(duty_lkr), 0) as total_duty,
+        COALESCE(SUM(clearing_lkr), 0) as total_clearing,
+        COALESCE(SUM(other_expenses_lkr), 0) as total_other_expenses,
+        COALESCE(SUM(total_cost_lkr), 0) as total_investment
+    FROM vehicle_financials vf`
+
+	query, args := filter.GetQuery(query, "", "", -1, -1)
+
+	var summary response.DetailedFinancialSummary
+	err := exec.QueryRowContext(ctx, query, args...).Scan(
+		&summary.TotalCharges,
+		&summary.TotalTT,
+		&summary.TotalDuty,
+		&summary.TotalClearing,
+		&summary.TotalOtherExpenses,
+		&summary.TotalInvestment,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	return &summary, nil
 
 }

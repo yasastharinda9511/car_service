@@ -6,7 +6,6 @@ import (
 
 	"car_service/services"
 	"database/sql"
-	//"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -23,9 +22,13 @@ func NewAPIServer(db *sql.DB) *APIServer {
 	server := &APIServer{router: mux.NewRouter()}
 
 	vehicleService := services.NewVehicleService(db)
+	analyticService := services.NewAnalyticsService(db)
 
 	vehicleController := controllers.NewVehicleController(vehicleService, server.router)
+	analyticController := controllers.NewAnalyticController(analyticService, server.router)
+
 	vehicleController.SetupRoutes()
+	analyticController.SetupRoutes()
 
 	server.setupRoutes()
 	return server
@@ -48,51 +51,7 @@ func (s *APIServer) corsMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *APIServer) setupRoutes() {
-
-	// Health check
 	s.router.HandleFunc("/health", s.healthCheck).Methods("GET")
-
-	// API v1 routes
-
-	// Vehicle routes
-	//vehicles := api.PathPrefix("/vehicles").Subrouter()
-	//vehicles.HandleFunc("", s.getVehicles).Methods("GET")
-	//vehicles.HandleFunc("/{id}", s.getVehicle).Methods("GET")
-	//vehicles.HandleFunc("", s.createVehicle).Methods("POST")
-	//vehicles.HandleFunc("/upload-image/{filename}", s.serveImageHandler).Methods("GET")
-	//vehicles.HandleFunc("/upload-image/{id}", s.uploadImageHandler).Methods("POST")
-	//
-	//vehicles.HandleFunc("/{id}/shipping", s.updateShipping).Methods("PUT")
-	//vehicles.HandleFunc("/{id}/purchase", s.updatePurchase).Methods("PUT")
-	//vehicles.HandleFunc("/{id}/financials", s.updateFinancials).Methods("PUT")
-	//vehicles.HandleFunc("/{id}/sales", s.updateSales).Methods("PUT")
-	//vehicles.HandleFunc("/{id}", s.updateVehicle).Methods("PUT")
-	////
-	//// Order routes
-	//orders := api.PathPrefix("/orders").Subrouter()
-	//orders.HandleFunc("", s.getOrders).Methods("GET")
-	//orders.HandleFunc("/{id}", s.getOrder).Methods("GET")
-	//orders.HandleFunc("", s.createOrder).Methods("POST")
-	//orders.HandleFunc("/{id}/status", s.updateOrderStatus).Methods("PUT")
-	//
-	//// Analytics routes
-	//analytics := api.PathPrefix("/analytics").Subrouter()
-	//analytics.HandleFunc("/dashboard", s.getDashboardStats).Methods("GET")
-	//analytics.HandleFunc("/sales-summary", s.getSalesSummary).Methods("GET")
-	//analytics.HandleFunc("/inventory-status", s.getInventoryStatus).Methods("GET")
-	//
-	//// Vehicle Makes routes
-	//makes := api.PathPrefix("/makes").Subrouter()
-	//makes.HandleFunc("", s.createVehicleMake).Methods("POST")
-	//makes.HandleFunc("", s.getVehicleMakes).Methods("GET")
-	//makes.HandleFunc("/{id}", s.updateVehicleMake).Methods("PUT")
-
-	// Vehicle Models routes
-	//models := api.PathPrefix("/models").Subrouter()
-	//models.HandleFunc("", s.createVehicleModel).Methods("POST")
-	//models.HandleFunc("", s.getVehicleModels).Methods("GET")
-	//models.HandleFunc("/{id}", s.getVehicleModel).Methods("GET")
-	//models.HandleFunc("/{id}", s.updateVehicleModel).Methods("PUT")
 }
 
 // Helper functions for JSON responses
@@ -116,8 +75,12 @@ func (s *APIServer) healthCheck(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, response)
 }
 
-// Vehicle handlers
-//
+func (s *APIServer) Start(port string, allowedOrigins []string) error {
+	log.Printf("Starting server on port %s", port)
+	cors := config.NewCorsConfig(allowedOrigins)
+	return http.ListenAndServe(":"+port, cors.WithCORS(s.router))
+}
+
 //	func (s *APIServer) createVehicleMake(w http.ResponseWriter, r *http.Request) {
 //		var req request.CreateVehicleMake
 //
@@ -493,9 +456,3 @@ func (s *APIServer) healthCheck(w http.ResponseWriter, r *http.Request) {
 //		}
 //		s.writeJSON(w, http.StatusOK, map[string]interface{}{"data": inventory})
 //	}
-
-func (s *APIServer) Start(port string, allowedOrigins []string) error {
-	log.Printf("Starting server on port %s", port)
-	cors := config.NewCorsConfig(allowedOrigins)
-	return http.ListenAndServe(":"+port, cors.WithCORS(s.router))
-}

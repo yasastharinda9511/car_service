@@ -255,3 +255,37 @@ func (s *VehicleRepository) UpdateVehicleDetails(ctx context.Context, exec datab
 	return err
 
 }
+func (s *VehicleRepository) GetVehicleBrandCount(ctx context.Context, exec database.Executor, filter filters.Filter) (map[string]int, error) {
+	query := `SELECT 
+    model,
+    COUNT(*) as vehicle_count
+	FROM vehicles v`
+
+	query, args := filter.GetQuery(query, "v.model", "", -1, -1)
+	rows, err := exec.QueryContext(ctx, query, args...)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := make(map[string]int)
+
+	for rows.Next() {
+		var status string
+		var count int
+
+		err := rows.Scan(&status, &count)
+		if err != nil {
+			return nil, err
+		}
+
+		results[status] = count
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}

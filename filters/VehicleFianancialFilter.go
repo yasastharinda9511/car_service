@@ -6,16 +6,16 @@ import (
 	"time"
 )
 
-type VehicleShippingFilter struct {
+type VehicleFinancialFilter struct {
 	DateFrom     *time.Time
 	DateTo       *time.Time
 	QueryBuilder *queryBuilder.QueryBuilder
 }
 
-func NewVehicleShippingFilter() Filter {
-	return &VehicleShippingFilter{QueryBuilder: queryBuilder.NewQueryBuilder()}
+func NewVehicleFinancialFilter() Filter {
+	return &VehicleFinancialFilter{QueryBuilder: queryBuilder.NewQueryBuilder()}
 }
-func (v *VehicleShippingFilter) GetValuesFromRequest(r *http.Request) Filter {
+func (v *VehicleFinancialFilter) GetValuesFromRequest(r *http.Request) Filter {
 
 	dateFromStr := r.URL.Query().Get("dateRangeStart")
 	if dateFromStr != "" {
@@ -35,16 +35,16 @@ func (v *VehicleShippingFilter) GetValuesFromRequest(r *http.Request) Filter {
 	}
 
 	if v.DateFrom != nil && v.DateTo != nil {
-		v.QueryBuilder.AddRangeCondition("vs.created_at", *v.DateFrom, *v.DateTo)
+		v.QueryBuilder.AddRangeCondition("vf.created_at", *v.DateFrom, *v.DateTo)
 	} else if v.DateTo != nil {
-		v.QueryBuilder.AddMinRangeCondition("vs.created_at", *v.DateTo)
+		v.QueryBuilder.AddMinRangeCondition("vf.created_at", *v.DateTo)
 	} else if v.DateFrom != nil {
-		v.QueryBuilder.AddMaxRangeCondition("vs.created_at", *v.DateFrom)
+		v.QueryBuilder.AddMaxRangeCondition("vf.created_at", *v.DateFrom)
 	}
 
 	return v
 }
 
-func (v *VehicleShippingFilter) GetQuery(baseQuery string, groupBy string, orderBy string, limit, offset int) (string, []interface{}) {
+func (v *VehicleFinancialFilter) GetQuery(baseQuery string, groupBy string, orderBy string, limit, offset int) (string, []interface{}) {
 	return v.QueryBuilder.Build(baseQuery, groupBy, orderBy, limit, offset)
 }

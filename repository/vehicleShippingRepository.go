@@ -60,13 +60,37 @@ func (r *VehicleShippingRepository) UpdateShippingStatus(ctx context.Context, ex
 	return err
 }
 
-func (r *VehicleShippingRepository) getShippingStustVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) {
+func (r *VehicleShippingRepository) GetShippingStustVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) (map[string]int, error) {
 	query := `SELECT 
     shipping_status,
     COUNT(*) as vehicle_count
 	FROM vehicle_shipping vs`
 
-	query, args := filter.GetQuery(query, "vs.shippin_status", "", -1, -1)
-	exec.QueryContext(ctx, query, args...)
+	query, args := filter.GetQuery(query, "vs.shipping_status", "", -1, -1)
+	rows, err := exec.QueryContext(ctx, query, args...)
 
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := make(map[string]int)
+
+	for rows.Next() {
+		var status string
+		var count int
+
+		err := rows.Scan(&status, &count)
+		if err != nil {
+			return nil, err
+		}
+
+		results[status] = count
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
