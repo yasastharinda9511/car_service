@@ -257,11 +257,11 @@ func (s *VehicleRepository) UpdateVehicleDetails(ctx context.Context, exec datab
 }
 func (s *VehicleRepository) GetVehicleBrandCount(ctx context.Context, exec database.Executor, filter filters.Filter) (map[string]int, error) {
 	query := `SELECT 
-    model,
+	make,
     COUNT(*) as vehicle_count
 	FROM vehicles v`
 
-	query, args := filter.GetQuery(query, "v.model", "", -1, -1)
+	query, args := filter.GetQuery(query, "v.make", "", -1, -1)
 	rows, err := exec.QueryContext(ctx, query, args...)
 
 	if err != nil {
