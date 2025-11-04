@@ -3,7 +3,7 @@ version: 0.2
 env:
   variables:
     AWS_REGION: us-east-1                           # 🟢 Change this to your AWS region
-    IMAGE_REPO_NAME: car-service/car-service        # 🟢 Your ECR repository name
+    IMAGE_REPO_NAME: car-service/car-service-backend        # 🟢 Your ECR repository name
     IMAGE_TAG: latest                               # Use 'latest' or '$CODEBUILD_RESOLVED_SOURCE_VERSION' for commit hash
     CONTAINER_NAME: car-service-container       # 🟢 Container name for ECS task definition
     GO_VERSION: "1.25"                              # Go version
