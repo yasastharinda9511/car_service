@@ -32,7 +32,7 @@ RUN apk --no-cache add ca-certificates tzdata wget
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /build/user_management_service .
+COPY --from=builder /build/car_service .
 
 # Expose port 80
 EXPOSE 80
