@@ -28,9 +28,9 @@ func Load() (*Config, error) {
 	dbPassword := getEnv("DB_PASSWORD", "password")
 	dbName := getEnv("DB_NAME", "user_management")
 
-	cfg.DatabaseURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+	cfg.DatabaseURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=require",
 		dbUser, dbPassword, dbHost, dbPort, dbName)
-	
+
 	return cfg, nil
 }
 

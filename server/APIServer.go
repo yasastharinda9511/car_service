@@ -16,10 +16,14 @@ import (
 
 type APIServer struct {
 	router *mux.Router
+	db     *sql.DB
 }
 
 func NewAPIServer(db *sql.DB) *APIServer {
-	server := &APIServer{router: mux.NewRouter()}
+	server := &APIServer{
+		router: mux.NewRouter(),
+		db:     db,
+	}
 
 	vehicleService := services.NewVehicleService(db)
 	analyticService := services.NewAnalyticsService(db)
@@ -51,7 +55,13 @@ func (s *APIServer) corsMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *APIServer) setupRoutes() {
+	// Health check endpoints:
+	// - /health: Comprehensive health check with database connectivity and schema verification
+	// - /health/live: Liveness probe - returns 200 if the application is running
+	// - /health/ready: Readiness probe - returns 200 if the application is ready to serve traffic
 	s.router.HandleFunc("/health", s.healthCheck).Methods("GET")
+	s.router.HandleFunc("/health/live", s.livenessCheck).Methods("GET")
+	s.router.HandleFunc("/health/ready", s.readinessCheck).Methods("GET")
 }
 
 // Helper functions for JSON responses
@@ -67,11 +77,108 @@ func (s *APIServer) writeError(w http.ResponseWriter, status int, message string
 
 // Health check handler
 func (s *APIServer) healthCheck(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Initialize response
 	response := map[string]interface{}{
 		"status":    "healthy",
-		"timestamp": time.Now().Unix(),
-		"service":   "car-deals-api",
+		"timestamp": time.Now().Format(time.RFC3339),
+		"service":   "car-service-api",
+		"version":   "1.0.0",
+		"checks":    make(map[string]interface{}),
 	}
+
+	overallHealthy := true
+
+	// Check database connectivity
+	dbHealth := map[string]interface{}{
+		"status": "healthy",
+	}
+
+	// Ping database with timeout
+	if err := s.db.PingContext(ctx); err != nil {
+		dbHealth["status"] = "unhealthy"
+		dbHealth["error"] = err.Error()
+		overallHealthy = false
+	} else {
+		// Get database stats
+		stats := s.db.Stats()
+		dbHealth["open_connections"] = stats.OpenConnections
+		dbHealth["in_use"] = stats.InUse
+		dbHealth["idle"] = stats.Idle
+		dbHealth["max_open_connections"] = stats.MaxOpenConnections
+
+		// Test a simple query to ensure schema access
+		var schemaExists bool
+		err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'cars')").Scan(&schemaExists)
+		if err != nil {
+			dbHealth["schema_check"] = "error"
+			dbHealth["schema_error"] = err.Error()
+			overallHealthy = false
+		} else if !schemaExists {
+			dbHealth["schema_check"] = "warning"
+			dbHealth["schema_warning"] = "cars schema not found"
+		} else {
+			dbHealth["schema_check"] = "ok"
+		}
+	}
+
+	response["checks"].(map[string]interface{})["database"] = dbHealth
+
+	// Set overall status
+	if !overallHealthy {
+		response["status"] = "unhealthy"
+		s.writeJSON(w, http.StatusServiceUnavailable, response)
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, response)
+}
+
+// Liveness check handler - checks if the application is alive
+// This is used by Kubernetes to know if it should restart the pod
+func (s *APIServer) livenessCheck(w http.ResponseWriter, r *http.Request) {
+	response := map[string]interface{}{
+		"status":    "alive",
+		"timestamp": time.Now().Format(time.RFC3339),
+		"service":   "car-service-api",
+	}
+	s.writeJSON(w, http.StatusOK, response)
+}
+
+// Readiness check handler - checks if the application is ready to serve traffic
+// This is used by Kubernetes to know if it should send traffic to the pod
+func (s *APIServer) readinessCheck(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	response := map[string]interface{}{
+		"status":    "ready",
+		"timestamp": time.Now().Format(time.RFC3339),
+		"service":   "car-service-api",
+	}
+
+	// Check database connectivity for readiness
+	if err := s.db.PingContext(ctx); err != nil {
+		response["status"] = "not_ready"
+		response["reason"] = "database_unavailable"
+		response["error"] = err.Error()
+		s.writeJSON(w, http.StatusServiceUnavailable, response)
+		return
+	}
+
+	// Verify cars schema exists
+	var schemaExists bool
+	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'cars')").Scan(&schemaExists)
+	if err != nil || !schemaExists {
+		response["status"] = "not_ready"
+		response["reason"] = "schema_not_found"
+		if err != nil {
+			response["error"] = err.Error()
+		}
+		s.writeJSON(w, http.StatusServiceUnavailable, response)
+		return
+	}
+
 	s.writeJSON(w, http.StatusOK, response)
 }
 
