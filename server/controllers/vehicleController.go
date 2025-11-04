@@ -46,7 +46,7 @@ func (vc *VehicleController) writeError(w http.ResponseWriter, status int, messa
 
 func (vc *VehicleController) SetupRoutes() {
 
-	api := vc.router.PathPrefix("car-service/api/v1").Subrouter()
+	api := vc.router.PathPrefix("/car-service/api/v1").Subrouter()
 
 	// Vehicle routes
 	vehicles := api.PathPrefix("/vehicles").Subrouter()
