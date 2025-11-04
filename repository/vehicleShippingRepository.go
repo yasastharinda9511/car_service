@@ -20,7 +20,7 @@ func (r *VehicleShippingRepository) GetByVehicleID(ctx context.Context, exec dat
 	query := `
         SELECT id, vehicle_id, vessel_name, departure_harbour,
                shipment_date, arrival_date, clearing_date, shipping_status
-        FROM vehicle_shipping
+        FROM cars.vehicle_shipping
         WHERE vehicle_id = $1
     `
 	var vs entity.VehicleShipping
@@ -36,7 +36,7 @@ func (r *VehicleShippingRepository) GetByVehicleID(ctx context.Context, exec dat
 
 func (r *VehicleShippingRepository) InsertDefault(ctx context.Context, exec database.Executor, vehicleID int64) error {
 	_, err := exec.ExecContext(ctx, `
-        INSERT INTO vehicle_shipping (vehicle_id, shipping_status) 
+        INSERT INTO cars.vehicle_shipping (vehicle_id, shipping_status)
         VALUES ($1, 'PROCESSING')
     `, vehicleID)
 	return err
@@ -44,7 +44,7 @@ func (r *VehicleShippingRepository) InsertDefault(ctx context.Context, exec data
 
 func (r *VehicleShippingRepository) UpdateShippingStatus(ctx context.Context, exec database.Executor, vehicleID int64, detailsRequest request.ShippingDetailsRequest) error {
 	query := `
-       UPDATE vehicle_shipping
+       UPDATE cars.vehicle_shipping
        SET vessel_name = $2,
            departure_harbour = $3,
            shipment_date = $4,
@@ -61,10 +61,10 @@ func (r *VehicleShippingRepository) UpdateShippingStatus(ctx context.Context, ex
 }
 
 func (r *VehicleShippingRepository) GetShippingStustVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) (map[string]int, error) {
-	query := `SELECT 
+	query := `SELECT
     shipping_status,
     COUNT(*) as vehicle_count
-	FROM vehicle_shipping vs`
+	FROM cars.vehicle_shipping vs`
 
 	query, args := filter.GetQuery(query, "vs.shipping_status", "", -1, -1)
 	rows, err := exec.QueryContext(ctx, query, args...)

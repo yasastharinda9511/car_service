@@ -85,12 +85,12 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 			COALESCE(vi.upload_date, '1970-01-01') AS upload_date,
 			COALESCE(vi.display_order, 0) AS display_order
 
-		FROM vehicles v
-		LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-		LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
-		LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-		LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
-		LEFT JOIN vehicle_images vi ON v.id = vi.vehicle_id
+		FROM cars.vehicles v
+		LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id
+		LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
+		LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
+		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id
+		LEFT JOIN cars.vehicle_images vi ON v.id = vi.vehicle_id
 	`
 
 	query, args := filter.GetQuery(query, "", "", limit, offset)
@@ -158,11 +158,11 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 func (s *VehicleRepository) GetAllVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) (int64, error) {
 	var count int64
 	query := `SELECT COUNT(*)
-        FROM vehicles v
-        LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-        LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
-        LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-        LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id`
+        FROM cars.vehicles v
+        LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id
+        LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
+        LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
+        LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id`
 
 	query, args := filter.GetQuery(query, "", "", -1, -1)
 
@@ -175,7 +175,7 @@ func (s *VehicleRepository) GetAllVehicleCount(ctx context.Context, exec databas
 }
 
 func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Executor, id int64) (*entity.Vehicle, error) {
-	query := `SELECT 
+	query := `SELECT
         v.id,
 		v.code,
 		v.make,
@@ -191,7 +191,7 @@ func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Ex
 		v.currency,
 		v.created_at,
 		v.updated_at
-		FROM vehicles v
+		FROM cars.vehicles v
 		WHERE v.id = $1`
 
 	var vehicle entity.Vehicle
@@ -208,7 +208,7 @@ func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Ex
 func (s *VehicleRepository) Insert(ctx context.Context, exec database.Executor, req request.CreateVehicleRequest) (int64, error) {
 	var vehicleID int64
 	query := `
-        INSERT INTO vehicles (code, make, model, trim_level, year_of_manufacture, color, 
+        INSERT INTO cars.vehicles (code, make, model, trim_level, year_of_manufacture, color,
             mileage_km, chassis_id, condition_status, auction_grade, cif_value, currency)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id
@@ -223,7 +223,7 @@ func (s *VehicleRepository) Insert(ctx context.Context, exec database.Executor, 
 
 func (s *VehicleRepository) UpdateVehicleDetails(ctx context.Context, exec database.Executor, vehicleID int64, req *request.UpdateVehicleRequest) error {
 	query := `
-       UPDATE vehicles
+       UPDATE cars.vehicles
        SET code = COALESCE($2, code),
            make = COALESCE($3, make),
            model = COALESCE($4, model),
@@ -256,10 +256,10 @@ func (s *VehicleRepository) UpdateVehicleDetails(ctx context.Context, exec datab
 
 }
 func (s *VehicleRepository) GetVehicleBrandCount(ctx context.Context, exec database.Executor, filter filters.Filter) (map[string]int, error) {
-	query := `SELECT 
+	query := `SELECT
 	make,
     COUNT(*) as vehicle_count
-	FROM vehicles v`
+	FROM cars.vehicles v`
 
 	query, args := filter.GetQuery(query, "v.make", "", -1, -1)
 	rows, err := exec.QueryContext(ctx, query, args...)

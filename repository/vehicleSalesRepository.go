@@ -18,7 +18,7 @@ func NewVehicleSalesRepository() *VehicleSalesRepository {
 
 func (r *VehicleSalesRepository) InsertDefault(ctx context.Context, exec database.Executor, vehicleID int64) error {
 	_, err := exec.ExecContext(ctx, `
-        INSERT INTO vehicle_sales (vehicle_id, sale_status) 
+        INSERT INTO cars.vehicle_sales (vehicle_id, sale_status)
         VALUES ($1, 'AVAILABLE')
     `, vehicleID)
 	return err
@@ -28,7 +28,7 @@ func (r *VehicleSalesRepository) GetByVehicleID(ctx context.Context, exec databa
 	query := `
         SELECT id, vehicle_id, sold_date, revenue, profit,
         sold_to_name, sold_to_title, contact_number, customer_address, sale_status
-        FROM vehicle_sales
+        FROM cars.vehicle_sales
         WHERE vehicle_id = $1
     `
 	var vs entity.VehicleSales
@@ -45,7 +45,7 @@ func (r *VehicleSalesRepository) GetByVehicleID(ctx context.Context, exec databa
 
 func (r *VehicleSalesRepository) UpdateSalesDetails(ctx context.Context, exec database.Executor, vehicleID int64, req *request.SalesDetailsRequest) error {
 	query := `
-       UPDATE vehicle_sales
+       UPDATE cars.vehicle_sales
        SET sold_date = $2,
            revenue = $3,
            profit = $4,
@@ -65,10 +65,10 @@ func (r *VehicleSalesRepository) UpdateSalesDetails(ctx context.Context, exec da
 }
 
 func (r *VehicleSalesRepository) GetSalesStustVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) (map[string]int, error) {
-	query := `SELECT 
+	query := `SELECT
     sale_status,
     COUNT(*) as vehicle_count
-	FROM vehicle_sales vsl`
+	FROM cars.vehicle_sales vsl`
 
 	query, args := filter.GetQuery(query, "vsl.sale_status", "", -1, -1)
 	rows, err := exec.QueryContext(ctx, query, args...)

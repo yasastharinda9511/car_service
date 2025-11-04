@@ -17,7 +17,7 @@ func NewVehiclePurchaseRepository() *VehiclePurchaseRepository {
 
 func (r *VehiclePurchaseRepository) InsertDefault(ctx context.Context, exec database.Executor, vehicleID int64) error {
 	_, err := exec.ExecContext(ctx, `
-        INSERT INTO vehicle_purchases (vehicle_id) 
+        INSERT INTO cars.vehicle_purchases (vehicle_id)
         VALUES ($1)
     `, vehicleID)
 	return err
@@ -28,7 +28,7 @@ func (r *VehiclePurchaseRepository) GetByVehicleID(ctx context.Context, exec dat
         SELECT id, vehicle_id, bought_from_name, bought_from_title,
                bought_from_contact, bought_from_address, bought_from_other_contacts,
                purchase_remarks, lc_bank, lc_number, lc_cost_jpy, purchase_date
-        FROM vehicle_purchases
+        FROM cars.vehicle_purchases
         WHERE vehicle_id = $1
     `
 	var vp entity.VehiclePurchase
@@ -46,7 +46,7 @@ func (r *VehiclePurchaseRepository) GetByVehicleID(ctx context.Context, exec dat
 func (r *VehiclePurchaseRepository) UpdateVehiclePurchase(ctx context.Context, exec database.Executor, vehicleID int64, request *request.PurchaseRequest) error {
 
 	query := `
-       UPDATE vehicle_purchases
+       UPDATE cars.vehicle_purchases
        SET bought_from_name = $2,
            bought_from_title = $3,
            bought_from_contact = $4,

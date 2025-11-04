@@ -15,7 +15,7 @@ func NewVehicleImageRepository() *VehicleImageRepository {
 
 func (s *VehicleImageRepository) InsertVehicleImage(ctx context.Context, exec database.Executor, vehicleImage *entity.VehicleImage) (*entity.VehicleImage, error) {
 	query := `
-        INSERT INTO vehicle_images (vehicle_id, filename, original_name, file_path, file_size, mime_type, is_primary, display_order)
+        INSERT INTO cars.vehicle_images (vehicle_id, filename, original_name, file_path, file_size, mime_type, is_primary, display_order)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id, upload_date`
 
@@ -41,7 +41,7 @@ func (s *VehicleImageRepository) GetByVehicleID(ctx context.Context, exec databa
 	query := `
         SELECT id, vehicle_id, filename, original_name, file_path,
         file_size, mime_type, is_primary, upload_date, display_order
-        FROM vehicle_images
+        FROM cars.vehicle_images
         WHERE vehicle_id = $1
         ORDER BY display_order ASC
     `

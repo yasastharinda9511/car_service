@@ -7,28 +7,37 @@
 -- \c car_deals_db;
 
 -- =====================================================
+-- CREATE CARS SCHEMA
+-- =====================================================
+
+CREATE SCHEMA IF NOT EXISTS cars;
+
+-- Set search path to cars schema
+SET search_path TO cars, public;
+
+-- =====================================================
 -- ENUMS AND CUSTOM TYPES
 -- =====================================================
 
-CREATE TYPE condition_status_enum AS ENUM ('REGISTERED', 'UNREGISTERED');
-CREATE TYPE shipping_status_enum AS ENUM ('PROCESSING', 'SHIPPED', 'ARRIVED', 'CLEARED', 'DELIVERED');
-CREATE TYPE sale_status_enum AS ENUM ('AVAILABLE', 'RESERVED', 'SOLD', 'CANCELLED');
-CREATE TYPE customer_type_enum AS ENUM ('INDIVIDUAL', 'BUSINESS');
-CREATE TYPE supplier_type_enum AS ENUM ('AUCTION', 'DEALER', 'INDIVIDUAL');
-CREATE TYPE order_type_enum AS ENUM ('AUCTION', 'DIRECT', 'DEALER');
-CREATE TYPE priority_level_enum AS ENUM ('NORMAL', 'HIGH', 'URGENT');
-CREATE TYPE shipping_method_enum AS ENUM ('VESSEL', 'CONTAINER', 'RORO');
-CREATE TYPE payment_method_enum AS ENUM ('CASH', 'FINANCING', 'LEASE', 'INSTALLMENT');
-CREATE TYPE order_status_enum AS ENUM ('DRAFT', 'SUBMITTED', 'PROCESSING', 'MATCHED', 'COMPLETED', 'CANCELLED');
-CREATE TYPE document_type_enum AS ENUM ('INVOICE', 'SHIPPING', 'CUSTOMS', 'INSPECTION', 'REGISTRATION', 'OTHER');
-CREATE TYPE audit_action_enum AS ENUM ('INSERT', 'UPDATE', 'DELETE');
+CREATE TYPE cars.condition_status_enum AS ENUM ('REGISTERED', 'UNREGISTERED');
+CREATE TYPE cars.shipping_status_enum AS ENUM ('PROCESSING', 'SHIPPED', 'ARRIVED', 'CLEARED', 'DELIVERED');
+CREATE TYPE cars.sale_status_enum AS ENUM ('AVAILABLE', 'RESERVED', 'SOLD', 'CANCELLED');
+CREATE TYPE cars.customer_type_enum AS ENUM ('INDIVIDUAL', 'BUSINESS');
+CREATE TYPE cars.supplier_type_enum AS ENUM ('AUCTION', 'DEALER', 'INDIVIDUAL');
+CREATE TYPE cars.order_type_enum AS ENUM ('AUCTION', 'DIRECT', 'DEALER');
+CREATE TYPE cars.priority_level_enum AS ENUM ('NORMAL', 'HIGH', 'URGENT');
+CREATE TYPE cars.shipping_method_enum AS ENUM ('VESSEL', 'CONTAINER', 'RORO');
+CREATE TYPE cars.payment_method_enum AS ENUM ('CASH', 'FINANCING', 'LEASE', 'INSTALLMENT');
+CREATE TYPE cars.order_status_enum AS ENUM ('DRAFT', 'SUBMITTED', 'PROCESSING', 'MATCHED', 'COMPLETED', 'CANCELLED');
+CREATE TYPE cars.document_type_enum AS ENUM ('INVOICE', 'SHIPPING', 'CUSTOMS', 'INSPECTION', 'REGISTRATION', 'OTHER');
+CREATE TYPE cars.audit_action_enum AS ENUM ('INSERT', 'UPDATE', 'DELETE');
 
 -- =====================================================
 -- MAIN TABLES
 -- =====================================================
 
 -- Vehicles Master Table
-CREATE TABLE vehicles (
+CREATE TABLE cars.vehicles (
                           id BIGSERIAL PRIMARY KEY,
                           code INTEGER UNIQUE NOT NULL,
                           make VARCHAR(50) NOT NULL,
@@ -38,7 +47,7 @@ CREATE TABLE vehicles (
                           color VARCHAR(50) NOT NULL,
                           mileage_km INTEGER,
                           chassis_id VARCHAR(50) UNIQUE NOT NULL,
-                          condition_status condition_status_enum DEFAULT 'UNREGISTERED',
+                          condition_status cars.condition_status_enum DEFAULT 'UNREGISTERED',
                           year_of_registration INTEGER,
                           license_plate VARCHAR(20),
                           auction_grade VARCHAR(10),
@@ -54,14 +63,14 @@ CREATE TABLE vehicles (
 );
 
 -- Create indexes for vehicles table
-CREATE INDEX idx_vehicles_chassis_id ON vehicles(chassis_id);
-CREATE INDEX idx_vehicles_make_model ON vehicles(make, model);
-CREATE INDEX idx_vehicles_year ON vehicles(year_of_manufacture);
-CREATE INDEX idx_vehicles_code ON vehicles(code);
-CREATE INDEX idx_vehicles_make_year ON vehicles(make, year_of_manufacture);
+CREATE INDEX idx_vehicles_chassis_id ON cars.vehicles(chassis_id);
+CREATE INDEX idx_vehicles_make_model ON cars.vehicles(make, model);
+CREATE INDEX idx_vehicles_year ON cars.vehicles(year_of_manufacture);
+CREATE INDEX idx_vehicles_code ON cars.vehicles(code);
+CREATE INDEX idx_vehicles_make_year ON cars.vehicles(make, year_of_manufacture);
 
 -- Purchase Information Table
-CREATE TABLE vehicle_purchases (
+CREATE TABLE cars.vehicle_purchases (
                                    id BIGSERIAL PRIMARY KEY,
                                    vehicle_id BIGINT NOT NULL,
                                    bought_from_name VARCHAR(100),
@@ -77,14 +86,14 @@ CREATE TABLE vehicle_purchases (
                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-                                   CONSTRAINT fk_vehicle_purchases_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+                                   CONSTRAINT fk_vehicle_purchases_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES cars.vehicles(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_vehicle_purchases_vehicle_id ON vehicle_purchases(vehicle_id);
-CREATE INDEX idx_vehicle_purchases_purchase_date ON vehicle_purchases(purchase_date);
+CREATE INDEX idx_vehicle_purchases_vehicle_id ON cars.vehicle_purchases(vehicle_id);
+CREATE INDEX idx_vehicle_purchases_purchase_date ON cars.vehicle_purchases(purchase_date);
 
 -- Shipping Information Table
-CREATE TABLE vehicle_shipping (
+CREATE TABLE cars.vehicle_shipping (
                                   id BIGSERIAL PRIMARY KEY,
                                   vehicle_id BIGINT NOT NULL,
                                   vessel_name VARCHAR(100),
@@ -92,21 +101,21 @@ CREATE TABLE vehicle_shipping (
                                   shipment_date TIMESTAMP,
                                   arrival_date TIMESTAMP,
                                   clearing_date TIMESTAMP,
-                                  shipping_status shipping_status_enum DEFAULT 'PROCESSING',
+                                  shipping_status cars.shipping_status_enum DEFAULT 'PROCESSING',
                                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-                                  CONSTRAINT fk_vehicle_shipping_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+                                  CONSTRAINT fk_vehicle_shipping_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES cars.vehicles(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_vehicle_shipping_vehicle_id ON vehicle_shipping(vehicle_id);
-CREATE INDEX idx_vehicle_shipping_shipping_status ON vehicle_shipping(shipping_status);
-CREATE INDEX idx_vehicle_shipping_shipment_date ON vehicle_shipping(shipment_date);
-CREATE INDEX idx_vehicle_shipping_arrival_date ON vehicle_shipping(arrival_date);
-CREATE INDEX idx_vehicle_shipping_dates ON vehicle_shipping(shipment_date, arrival_date);
+CREATE INDEX idx_vehicle_shipping_vehicle_id ON cars.vehicle_shipping(vehicle_id);
+CREATE INDEX idx_vehicle_shipping_shipping_status ON cars.vehicle_shipping(shipping_status);
+CREATE INDEX idx_vehicle_shipping_shipment_date ON cars.vehicle_shipping(shipment_date);
+CREATE INDEX idx_vehicle_shipping_arrival_date ON cars.vehicle_shipping(arrival_date);
+CREATE INDEX idx_vehicle_shipping_dates ON cars.vehicle_shipping(shipment_date, arrival_date);
 
 -- Financial Information Table
-CREATE TABLE vehicle_financials (
+CREATE TABLE cars.vehicle_financials (
                                     id BIGSERIAL PRIMARY KEY,
                                     vehicle_id BIGINT NOT NULL,
                                     charges_lkr DECIMAL(15,2),
@@ -118,14 +127,14 @@ CREATE TABLE vehicle_financials (
                                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-                                    CONSTRAINT fk_vehicle_financials_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+                                    CONSTRAINT fk_vehicle_financials_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES cars.vehicles(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_vehicle_financials_vehicle_id ON vehicle_financials(vehicle_id);
-CREATE INDEX idx_vehicle_financials_total_cost ON vehicle_financials(total_cost_lkr);
+CREATE INDEX idx_vehicle_financials_vehicle_id ON cars.vehicle_financials(vehicle_id);
+CREATE INDEX idx_vehicle_financials_total_cost ON cars.vehicle_financials(total_cost_lkr);
 
 -- Sales Information Table
-CREATE TABLE vehicle_sales (
+CREATE TABLE cars.vehicle_sales (
                                id BIGSERIAL PRIMARY KEY,
                                vehicle_id BIGINT NOT NULL,
                                sold_date TIMESTAMP,
@@ -137,25 +146,25 @@ CREATE TABLE vehicle_sales (
                                customer_address TEXT,
                                other_contacts TEXT,
                                sale_remarks TEXT,
-                               sale_status sale_status_enum DEFAULT 'AVAILABLE',
+                               sale_status cars.sale_status_enum DEFAULT 'AVAILABLE',
                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-                               CONSTRAINT fk_vehicle_sales_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+                               CONSTRAINT fk_vehicle_sales_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES cars.vehicles(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_vehicle_sales_vehicle_id ON vehicle_sales(vehicle_id);
-CREATE INDEX idx_vehicle_sales_sold_date ON vehicle_sales(sold_date);
-CREATE INDEX idx_vehicle_sales_sale_status ON vehicle_sales(sale_status);
-CREATE INDEX idx_vehicle_sales_customer_name ON vehicle_sales(sold_to_name);
-CREATE INDEX idx_vehicle_sales_profit ON vehicle_sales(profit);
+CREATE INDEX idx_vehicle_sales_vehicle_id ON cars.vehicle_sales(vehicle_id);
+CREATE INDEX idx_vehicle_sales_sold_date ON cars.vehicle_sales(sold_date);
+CREATE INDEX idx_vehicle_sales_sale_status ON cars.vehicle_sales(sale_status);
+CREATE INDEX idx_vehicle_sales_customer_name ON cars.vehicle_sales(sold_to_name);
+CREATE INDEX idx_vehicle_sales_profit ON cars.vehicle_sales(profit);
 
 -- =====================================================
 -- REFERENCE TABLES
 -- =====================================================
 
 -- Vehicle Makes Reference Table
-CREATE TABLE vehicle_makes (
+CREATE TABLE cars.vehicle_makes (
                                id SERIAL PRIMARY KEY,
                                make_name VARCHAR(50) UNIQUE NOT NULL,
                                country_origin VARCHAR(50) DEFAULT 'Japan',
@@ -164,7 +173,7 @@ CREATE TABLE vehicle_makes (
 );
 
 -- Vehicle Models Reference Table
-CREATE TABLE vehicle_models (
+CREATE TABLE cars.vehicle_models (
                                 id SERIAL PRIMARY KEY,
                                 make_id INTEGER NOT NULL,
                                 model_name VARCHAR(100) NOT NULL,
@@ -175,14 +184,14 @@ CREATE TABLE vehicle_models (
                                 is_active BOOLEAN DEFAULT TRUE,
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-                                CONSTRAINT fk_vehicle_models_make_id FOREIGN KEY (make_id) REFERENCES vehicle_makes(id),
+                                CONSTRAINT fk_vehicle_models_make_id FOREIGN KEY (make_id) REFERENCES cars.vehicle_makes(id),
                                 CONSTRAINT unique_make_model UNIQUE (make_id, model_name)
 );
 
-CREATE INDEX idx_vehicle_models_make_id ON vehicle_models(make_id);
+CREATE INDEX idx_vehicle_models_make_id ON cars.vehicle_models(make_id);
 
 -- Customers Table
-CREATE TABLE customers (
+CREATE TABLE cars.customers (
                            id BIGSERIAL PRIMARY KEY,
                            customer_title VARCHAR(10),
                            customer_name VARCHAR(100) NOT NULL,
@@ -190,18 +199,18 @@ CREATE TABLE customers (
                            email VARCHAR(100),
                            address TEXT,
                            other_contacts TEXT,
-                           customer_type customer_type_enum DEFAULT 'INDIVIDUAL',
+                           customer_type cars.customer_type_enum DEFAULT 'INDIVIDUAL',
                            is_active BOOLEAN DEFAULT TRUE,
                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_customers_customer_name ON customers(customer_name);
-CREATE INDEX idx_customers_contact_number ON customers(contact_number);
-CREATE INDEX idx_customers_email ON customers(email);
+CREATE INDEX idx_customers_customer_name ON cars.customers(customer_name);
+CREATE INDEX idx_customers_contact_number ON cars.customers(contact_number);
+CREATE INDEX idx_customers_email ON cars.customers(email);
 
 -- Suppliers/Dealers Table
-CREATE TABLE suppliers (
+CREATE TABLE cars.suppliers (
                            id BIGSERIAL PRIMARY KEY,
                            supplier_name VARCHAR(100) NOT NULL,
                            supplier_title VARCHAR(10),
@@ -209,22 +218,22 @@ CREATE TABLE suppliers (
                            email VARCHAR(100),
                            address TEXT,
                            other_contacts TEXT,
-                           supplier_type supplier_type_enum DEFAULT 'AUCTION',
+                           supplier_type cars.supplier_type_enum DEFAULT 'AUCTION',
                            country VARCHAR(50) DEFAULT 'Japan',
                            is_active BOOLEAN DEFAULT TRUE,
                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_suppliers_supplier_name ON suppliers(supplier_name);
-CREATE INDEX idx_suppliers_supplier_type ON suppliers(supplier_type);
+CREATE INDEX idx_suppliers_supplier_name ON cars.suppliers(supplier_name);
+CREATE INDEX idx_suppliers_supplier_type ON cars.suppliers(supplier_type);
 
 -- =====================================================
 -- ORDER MANAGEMENT TABLES
 -- =====================================================
 
 -- Customer Orders Table (for new order system)
-CREATE TABLE customer_orders (
+CREATE TABLE cars.customer_orders (
                                  id BIGSERIAL PRIMARY KEY,
                                  order_number VARCHAR(50) UNIQUE NOT NULL,
                                  customer_id BIGINT,
@@ -241,19 +250,19 @@ CREATE TABLE customer_orders (
                                  required_features JSONB,
 
     -- Order Information
-                                 order_type order_type_enum DEFAULT 'AUCTION',
+                                 order_type cars.order_type_enum DEFAULT 'AUCTION',
                                  expected_delivery_date DATE,
-                                 priority_level priority_level_enum DEFAULT 'NORMAL',
+                                 priority_level cars.priority_level_enum DEFAULT 'NORMAL',
 
     -- Shipping Preferences
                                  preferred_port VARCHAR(50),
-                                 shipping_method shipping_method_enum DEFAULT 'VESSEL',
+                                 shipping_method cars.shipping_method_enum DEFAULT 'VESSEL',
                                  include_insurance BOOLEAN DEFAULT TRUE,
 
     -- Financial Information
                                  budget_min DECIMAL(15,2),
                                  budget_max DECIMAL(15,2),
-                                 payment_method payment_method_enum DEFAULT 'CASH',
+                                 payment_method cars.payment_method_enum DEFAULT 'CASH',
                                  down_payment DECIMAL(15,2),
 
     -- Additional Information
@@ -261,7 +270,7 @@ CREATE TABLE customer_orders (
                                  internal_notes TEXT,
 
     -- Order Status
-                                 order_status order_status_enum DEFAULT 'DRAFT',
+                                 order_status cars.order_status_enum DEFAULT 'DRAFT',
                                  is_draft BOOLEAN DEFAULT FALSE,
 
     -- Timestamps
@@ -270,16 +279,16 @@ CREATE TABLE customer_orders (
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-                                 CONSTRAINT fk_customer_orders_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id)
+                                 CONSTRAINT fk_customer_orders_customer_id FOREIGN KEY (customer_id) REFERENCES cars.customers(id)
 );
 
-CREATE INDEX idx_customer_orders_order_number ON customer_orders(order_number);
-CREATE INDEX idx_customer_orders_customer_id ON customer_orders(customer_id);
-CREATE INDEX idx_customer_orders_order_status ON customer_orders(order_status);
-CREATE INDEX idx_customer_orders_order_date ON customer_orders(order_date);
+CREATE INDEX idx_customer_orders_order_number ON cars.customer_orders(order_number);
+CREATE INDEX idx_customer_orders_customer_id ON cars.customer_orders(customer_id);
+CREATE INDEX idx_customer_orders_order_status ON cars.customer_orders(order_status);
+CREATE INDEX idx_customer_orders_order_date ON cars.customer_orders(order_date);
 
 -- Order-Vehicle Matching Table
-CREATE TABLE order_vehicle_matches (
+CREATE TABLE cars.order_vehicle_matches (
                                        id BIGSERIAL PRIMARY KEY,
                                        order_id BIGINT NOT NULL,
                                        vehicle_id BIGINT NOT NULL,
@@ -287,56 +296,56 @@ CREATE TABLE order_vehicle_matches (
                                        matched_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                        is_selected BOOLEAN DEFAULT FALSE,
 
-                                       CONSTRAINT fk_order_vehicle_matches_order_id FOREIGN KEY (order_id) REFERENCES customer_orders(id) ON DELETE CASCADE,
-                                       CONSTRAINT fk_order_vehicle_matches_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
+                                       CONSTRAINT fk_order_vehicle_matches_order_id FOREIGN KEY (order_id) REFERENCES cars.customer_orders(id) ON DELETE CASCADE,
+                                       CONSTRAINT fk_order_vehicle_matches_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES cars.vehicles(id) ON DELETE CASCADE,
                                        CONSTRAINT unique_order_vehicle UNIQUE (order_id, vehicle_id)
 );
 
-CREATE INDEX idx_order_vehicle_matches_order_id ON order_vehicle_matches(order_id);
-CREATE INDEX idx_order_vehicle_matches_vehicle_id ON order_vehicle_matches(vehicle_id);
+CREATE INDEX idx_order_vehicle_matches_order_id ON cars.order_vehicle_matches(order_id);
+CREATE INDEX idx_order_vehicle_matches_vehicle_id ON cars.order_vehicle_matches(vehicle_id);
 
 -- =====================================================
 -- AUDIT AND TRACKING TABLES
 -- =====================================================
 
 -- Audit Log Table
-CREATE TABLE audit_logs (
+CREATE TABLE cars.audit_logs (
                             id BIGSERIAL PRIMARY KEY,
                             table_name VARCHAR(50) NOT NULL,
                             record_id BIGINT NOT NULL,
-                            action audit_action_enum NOT NULL,
+                            action cars.audit_action_enum NOT NULL,
                             old_values JSONB,
                             new_values JSONB,
                             user_id VARCHAR(50),
                             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_audit_logs_table_record ON audit_logs(table_name, record_id);
-CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp);
+CREATE INDEX idx_audit_logs_table_record ON cars.audit_logs(table_name, record_id);
+CREATE INDEX idx_audit_logs_timestamp ON cars.audit_logs(timestamp);
 
 -- Document Attachments Table
-CREATE TABLE vehicle_documents (
+CREATE TABLE cars.vehicle_documents (
                                    id BIGSERIAL PRIMARY KEY,
                                    vehicle_id BIGINT NOT NULL,
-                                   document_type document_type_enum NOT NULL,
+                                   document_type cars.document_type_enum NOT NULL,
                                    document_name VARCHAR(255) NOT NULL,
                                    file_path VARCHAR(500),
                                    file_size_bytes BIGINT,
                                    mime_type VARCHAR(100),
                                    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-                                   CONSTRAINT fk_vehicle_documents_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+                                   CONSTRAINT fk_vehicle_documents_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES cars.vehicles(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_vehicle_documents_vehicle_id ON vehicle_documents(vehicle_id);
-CREATE INDEX idx_vehicle_documents_document_type ON vehicle_documents(document_type);
+CREATE INDEX idx_vehicle_documents_vehicle_id ON cars.vehicle_documents(vehicle_id);
+CREATE INDEX idx_vehicle_documents_document_type ON cars.vehicle_documents(document_type);
 
 -- =====================================================
 -- VIEWS FOR COMMON QUERIES
 -- =====================================================
 
 -- Complete Vehicle Information View
-CREATE VIEW vehicle_complete_info AS
+CREATE VIEW cars.vehicle_complete_info AS
 SELECT
     v.id,
     v.code,
@@ -384,14 +393,14 @@ SELECT
 
     v.created_at,
     v.updated_at
-FROM vehicles v
-         LEFT JOIN vehicle_purchases vp ON v.id = vp.vehicle_id
-         LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-         LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
-         LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id;
+FROM cars.vehicles v
+         LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id
+         LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id
+         LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
+         LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id;
 
 -- Sales Summary View
-CREATE VIEW sales_summary AS
+CREATE VIEW cars.sales_summary AS
 SELECT
     TO_CHAR(vsl.sold_date, 'YYYY-MM') as sale_month,
     COUNT(*) as vehicles_sold,
@@ -400,23 +409,23 @@ SELECT
     SUM(vsl.profit) as total_profit,
     AVG(vsl.profit) as avg_profit_per_vehicle,
     (SUM(vsl.profit) / SUM(vf.total_cost_lkr)) * 100 as profit_margin_percentage
-FROM vehicle_sales vsl
-         JOIN vehicle_financials vf ON vsl.vehicle_id = vf.vehicle_id
+FROM cars.vehicle_sales vsl
+         JOIN cars.vehicle_financials vf ON vsl.vehicle_id = vf.vehicle_id
 WHERE vsl.sold_date IS NOT NULL
 GROUP BY TO_CHAR(vsl.sold_date, 'YYYY-MM')
 ORDER BY sale_month DESC;
 
 -- Inventory Status View
-CREATE VIEW inventory_status AS
+CREATE VIEW cars.inventory_status AS
 SELECT
     vs.shipping_status,
     vsl.sale_status,
     COUNT(*) as vehicle_count,
     SUM(vf.total_cost_lkr) as total_investment
-FROM vehicles v
-         LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-         LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-         LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
+FROM cars.vehicles v
+         LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id
+         LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
+         LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
 GROUP BY vs.shipping_status, vsl.sale_status;
 
 -- =====================================================
@@ -424,7 +433,7 @@ GROUP BY vs.shipping_status, vsl.sale_status;
 -- =====================================================
 
 -- Function to get vehicle complete information
-CREATE OR REPLACE FUNCTION get_vehicle_details(vehicle_code INTEGER)
+CREATE OR REPLACE FUNCTION cars.get_vehicle_details(vehicle_code INTEGER)
 RETURNS TABLE (
     id BIGINT,
     code INTEGER,
@@ -435,7 +444,7 @@ RETURNS TABLE (
     color VARCHAR(50),
     mileage_km INTEGER,
     chassis_id VARCHAR(50),
-    condition_status condition_status_enum,
+    condition_status cars.condition_status_enum,
     auction_grade VARCHAR(10),
     cif_value DECIMAL(15,2),
     currency VARCHAR(10),
@@ -447,7 +456,7 @@ RETURNS TABLE (
     shipment_date TIMESTAMP,
     arrival_date TIMESTAMP,
     clearing_date TIMESTAMP,
-    shipping_status shipping_status_enum,
+    shipping_status cars.shipping_status_enum,
     total_cost_lkr DECIMAL(15,2),
     charges_lkr DECIMAL(15,2),
     duty_lkr DECIMAL(15,2),
@@ -460,18 +469,18 @@ RETURNS TABLE (
     sold_to_title VARCHAR(10),
     contact_number VARCHAR(50),
     customer_address TEXT,
-    sale_status sale_status_enum,
+    sale_status cars.sale_status_enum,
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 ) AS $$
 BEGIN
 RETURN QUERY
-SELECT * FROM vehicle_complete_info WHERE vehicle_complete_info.code = vehicle_code;
+SELECT * FROM cars.vehicle_complete_info WHERE cars.vehicle_complete_info.code = vehicle_code;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to calculate profit margins
-CREATE OR REPLACE FUNCTION calculate_profit_margins(start_date DATE, end_date DATE)
+CREATE OR REPLACE FUNCTION cars.calculate_profit_margins(start_date DATE, end_date DATE)
 RETURNS TABLE (
     make VARCHAR(50),
     model VARCHAR(100),
@@ -487,9 +496,9 @@ SELECT
     COUNT(*) as vehicles_sold,
     AVG(vsl.profit) as avg_profit,
     AVG((vsl.profit / vf.total_cost_lkr) * 100) as avg_profit_margin_percent
-FROM vehicles v
-         JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
-         JOIN vehicle_financials vf ON v.id = vf.vehicle_id
+FROM cars.vehicles v
+         JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
+         JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
 WHERE vsl.sold_date BETWEEN start_date AND end_date
 GROUP BY v.make, v.model
 ORDER BY avg_profit_margin_percent DESC;
@@ -501,7 +510,7 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 
 -- Function to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+CREATE OR REPLACE FUNCTION cars.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
@@ -510,48 +519,48 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create triggers for updating updated_at columns
-CREATE TRIGGER update_vehicles_updated_at BEFORE UPDATE ON vehicles
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_vehicles_updated_at BEFORE UPDATE ON cars.vehicles
+    FOR EACH ROW EXECUTE FUNCTION cars.update_updated_at_column();
 
-CREATE TRIGGER update_vehicle_purchases_updated_at BEFORE UPDATE ON vehicle_purchases
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_vehicle_purchases_updated_at BEFORE UPDATE ON cars.vehicle_purchases
+    FOR EACH ROW EXECUTE FUNCTION cars.update_updated_at_column();
 
-CREATE TRIGGER update_vehicle_shipping_updated_at BEFORE UPDATE ON vehicle_shipping
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_vehicle_shipping_updated_at BEFORE UPDATE ON cars.vehicle_shipping
+    FOR EACH ROW EXECUTE FUNCTION cars.update_updated_at_column();
 
-CREATE TRIGGER update_vehicle_financials_updated_at BEFORE UPDATE ON vehicle_financials
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_vehicle_financials_updated_at BEFORE UPDATE ON cars.vehicle_financials
+    FOR EACH ROW EXECUTE FUNCTION cars.update_updated_at_column();
 
-CREATE TRIGGER update_vehicle_sales_updated_at BEFORE UPDATE ON vehicle_sales
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_vehicle_sales_updated_at BEFORE UPDATE ON cars.vehicle_sales
+    FOR EACH ROW EXECUTE FUNCTION cars.update_updated_at_column();
 
-CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON cars.customers
+    FOR EACH ROW EXECUTE FUNCTION cars.update_updated_at_column();
 
-CREATE TRIGGER update_suppliers_updated_at BEFORE UPDATE ON suppliers
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_suppliers_updated_at BEFORE UPDATE ON cars.suppliers
+    FOR EACH ROW EXECUTE FUNCTION cars.update_updated_at_column();
 
-CREATE TRIGGER update_customer_orders_updated_at BEFORE UPDATE ON customer_orders
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_customer_orders_updated_at BEFORE UPDATE ON cars.customer_orders
+    FOR EACH ROW EXECUTE FUNCTION cars.update_updated_at_column();
 
 -- =====================================================
 -- TRIGGERS FOR AUDIT LOGGING
 -- =====================================================
 
 -- Function for audit logging
-CREATE OR REPLACE FUNCTION audit_trigger_function()
+CREATE OR REPLACE FUNCTION cars.audit_trigger_function()
 RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, new_values, user_id)
+        INSERT INTO cars.audit_logs (table_name, record_id, action, new_values, user_id)
         VALUES (TG_TABLE_NAME, NEW.id, 'INSERT', to_jsonb(NEW), current_user);
 RETURN NEW;
 ELSIF TG_OP = 'UPDATE' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, old_values, new_values, user_id)
+        INSERT INTO cars.audit_logs (table_name, record_id, action, old_values, new_values, user_id)
         VALUES (TG_TABLE_NAME, NEW.id, 'UPDATE', to_jsonb(OLD), to_jsonb(NEW), current_user);
 RETURN NEW;
 ELSIF TG_OP = 'DELETE' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, old_values, user_id)
+        INSERT INTO cars.audit_logs (table_name, record_id, action, old_values, user_id)
         VALUES (TG_TABLE_NAME, OLD.id, 'DELETE', to_jsonb(OLD), current_user);
 RETURN OLD;
 END IF;
@@ -561,19 +570,19 @@ $$ LANGUAGE plpgsql;
 
 -- Create audit triggers for main tables
 CREATE TRIGGER vehicles_audit_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON vehicles
-    FOR EACH ROW EXECUTE FUNCTION audit_trigger_function();
+    AFTER INSERT OR UPDATE OR DELETE ON cars.vehicles
+    FOR EACH ROW EXECUTE FUNCTION cars.audit_trigger_function();
 
 CREATE TRIGGER vehicle_sales_audit_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON vehicle_sales
-    FOR EACH ROW EXECUTE FUNCTION audit_trigger_function();
+    AFTER INSERT OR UPDATE OR DELETE ON cars.vehicle_sales
+    FOR EACH ROW EXECUTE FUNCTION cars.audit_trigger_function();
 
 -- =====================================================
 -- INITIAL DATA SETUP
 -- =====================================================
 
 -- Insert common vehicle makes
-INSERT INTO vehicle_makes (make_name, country_origin) VALUES
+INSERT INTO cars.vehicle_makes (make_name, country_origin) VALUES
                                                           ('Toyota', 'Japan'),
                                                           ('Honda', 'Japan'),
                                                           ('Nissan', 'Japan'),
@@ -586,27 +595,27 @@ INSERT INTO vehicle_makes (make_name, country_origin) VALUES
                                                           ('Acura', 'Japan');
 
 -- Insert common Toyota models
-INSERT INTO vehicle_models (make_id, model_name, body_type) VALUES
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Aqua', 'Hatchback'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Prius', 'Hatchback'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Vitz', 'Hatchback'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Axio', 'Sedan'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Fielder', 'Wagon'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Allion', 'Sedan'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Premio', 'Sedan'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Voxy', 'Minivan'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Toyota'), 'Noah', 'Minivan');
+INSERT INTO cars.vehicle_models (make_id, model_name, body_type) VALUES
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Aqua', 'Hatchback'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Prius', 'Hatchback'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Vitz', 'Hatchback'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Axio', 'Sedan'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Fielder', 'Wagon'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Allion', 'Sedan'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Premio', 'Sedan'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Voxy', 'Minivan'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Toyota'), 'Noah', 'Minivan');
 
 -- Insert common Honda models
-INSERT INTO vehicle_models (make_id, model_name, body_type) VALUES
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Honda'), 'Fit', 'Hatchback'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Honda'), 'Vezel', 'SUV'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Honda'), 'Grace', 'Sedan'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Honda'), 'Freed', 'Minivan'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Honda'), 'Shuttle', 'Wagon'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Honda'), 'CR-V', 'SUV'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Honda'), 'HR-V', 'SUV'),
-                                                                ((SELECT id FROM vehicle_makes WHERE make_name = 'Honda'), 'Stepwgn', 'Minivan');
+INSERT INTO cars.vehicle_models (make_id, model_name, body_type) VALUES
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Honda'), 'Fit', 'Hatchback'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Honda'), 'Vezel', 'SUV'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Honda'), 'Grace', 'Sedan'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Honda'), 'Freed', 'Minivan'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Honda'), 'Shuttle', 'Wagon'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Honda'), 'CR-V', 'SUV'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Honda'), 'HR-V', 'SUV'),
+                                                                ((SELECT id FROM cars.vehicle_makes WHERE make_name = 'Honda'), 'Stepwgn', 'Minivan');
 
 -- =====================================================
 -- USER MANAGEMENT (Adjust as needed)
@@ -635,7 +644,7 @@ INSERT INTO vehicle_models (make_id, model_name, body_type) VALUES
 -- =====================================================
 
 -- Sample data based on your Excel analysis
-INSERT INTO vehicles (code, make, model, trim_level, year_of_manufacture, color, mileage_km, chassis_id, condition_status, auction_grade, cif_value, currency, record_date) VALUES
+INSERT INTO cars.vehicles (code, make, model, trim_level, year_of_manufacture, color, mileage_km, chassis_id, condition_status, auction_grade, cif_value, currency, record_date) VALUES
                                                                                                                                                                                 (1, 'Toyota', 'Aqua', 'S', 2012, 'Silver', 16600, 'NHP10-6096289', 'UNREGISTERED', 'A/B', 1500000, 'JPY', '2013-12-26'),
                                                                                                                                                                                 (2, 'Toyota', 'Aqua', 'S', 2012, 'White', 16000, 'NHP10-6050119', 'UNREGISTERED', '5/A', NULL, 'JPY', '2013-12-31'),
                                                                                                                                                                                 (3, 'Honda', 'Fit', 'She''s', 2013, 'Pearl White', 4704, 'GP1-1206999', 'UNREGISTERED', '5/A', 1590000, 'JPY', '2013-12-26'),
@@ -656,7 +665,7 @@ INSERT INTO vehicles (code, make, model, trim_level, year_of_manufacture, color,
 -- INSERT VEHICLE PURCHASES DATA
 -- =====================================================
 
-INSERT INTO vehicle_purchases (vehicle_id, bought_from_name, bought_from_title, bought_from_contact, bought_from_address, lc_cost_jpy, purchase_date, purchase_remarks) VALUES
+INSERT INTO cars.vehicle_purchases (vehicle_id, bought_from_name, bought_from_title, bought_from_contact, bought_from_address, lc_cost_jpy, purchase_date, purchase_remarks) VALUES
                                                                                                                                                                             (1, NULL, NULL, NULL, NULL, 1384900, '2013-12-25', 'Auction purchase'),
                                                                                                                                                                             (2, 'Mr Duminda', 'Mr', NULL, NULL, 1272700, '2013-12-31', 'Bought by Mr Duminda for his customer'),
                                                                                                                                                                             (3, NULL, NULL, NULL, NULL, 1384900, '2013-12-25', 'Auction purchase'),
@@ -677,7 +686,7 @@ INSERT INTO vehicle_purchases (vehicle_id, bought_from_name, bought_from_title, 
 -- INSERT VEHICLE SHIPPING DATA
 -- =====================================================
 
-INSERT INTO vehicle_shipping (vehicle_id, vessel_name, departure_harbour, shipment_date, arrival_date, clearing_date, shipping_status) VALUES
+INSERT INTO cars.vehicle_shipping (vehicle_id, vessel_name, departure_harbour, shipment_date, arrival_date, clearing_date, shipping_status) VALUES
                                                                                                                                            (1, 'Delphinus Leader v24', 'Nagoya', '2013-12-26', '2013-12-13', '2014-01-21', 'CLEARED'),
                                                                                                                                            (2, NULL, NULL, NULL, '2014-01-01', '2014-01-01', 'CLEARED'),
                                                                                                                                            (3, 'Delphinus Leader v24', 'Nagoya', '2013-12-26', '2013-12-26', '2014-01-21', 'CLEARED'),
@@ -698,7 +707,7 @@ INSERT INTO vehicle_shipping (vehicle_id, vessel_name, departure_harbour, shipme
 -- INSERT VEHICLE FINANCIALS DATA
 -- =====================================================
 
-INSERT INTO vehicle_financials (vehicle_id, charges_lkr, tt_lkr, duty_lkr, clearing_lkr, other_expenses_lkr, total_cost_lkr) VALUES
+INSERT INTO cars.vehicle_financials (vehicle_id, charges_lkr, tt_lkr, duty_lkr, clearing_lkr, other_expenses_lkr, total_cost_lkr) VALUES
                                                                                                                                  (1, 7274, 514000, 1158520, 22000, 1000, 3087694),
                                                                                                                                  (2, 15000, NULL, 1157200, NULL, 100000, 2544900),
                                                                                                                                  (3, 7216, 629650, 1194995, 22000, 500, 3239261),
@@ -719,7 +728,7 @@ INSERT INTO vehicle_financials (vehicle_id, charges_lkr, tt_lkr, duty_lkr, clear
 -- INSERT VEHICLE SALES DATA
 -- =====================================================
 
-INSERT INTO vehicle_sales (vehicle_id, sold_date, revenue, profit, sold_to_name, sold_to_title, contact_number, customer_address, other_contacts, sale_remarks, sale_status) VALUES
+INSERT INTO cars.vehicle_sales (vehicle_id, sold_date, revenue, profit, sold_to_name, sold_to_title, contact_number, customer_address, other_contacts, sale_remarks, sale_status) VALUES
                                                                                                                                                                                  (1, '2014-02-12', 3250000, 162306, 'Samanthika Perera', 'Ms', '717331843/0412221319', 'Dondra', 'Amila: 0711492000, Mr Rohana: 0718577460', 'Cheque received from Siyapatha Finance', 'SOLD'),
                                                                                                                                                                                  (2, NULL, 2835100, 290200, NULL, NULL, NULL, NULL, 'Mr Duminda', NULL, 'AVAILABLE'),
                                                                                                                                                                                  (3, '2014-01-28', 3350000, 110739, 'Mohan (Com Bank)', 'Mr', NULL, NULL, NULL, NULL, 'SOLD'),
@@ -740,7 +749,7 @@ INSERT INTO vehicle_sales (vehicle_id, sold_date, revenue, profit, sold_to_name,
 -- INSERT CUSTOMERS DATA (Extract from sales)
 -- =====================================================
 
-INSERT INTO customers (customer_name, customer_title, contact_number, address, other_contacts, customer_type) VALUES
+INSERT INTO cars.customers (customer_name, customer_title, contact_number, address, other_contacts, customer_type) VALUES
                                                                                                                   ('Samanthika Perera', 'Ms', '717331843/0412221319', 'Dondra', 'Amila: 0711492000, Mr Rohana: 0718577460', 'INDIVIDUAL'),
                                                                                                                   ('Mohan', 'Mr', NULL, 'Commercial Bank', NULL, 'BUSINESS'),
                                                                                                                   ('KA Susantha', 'Mr', '716609525', 'Welegoda, Matara', NULL, 'INDIVIDUAL'),
@@ -756,7 +765,7 @@ INSERT INTO customers (customer_name, customer_title, contact_number, address, o
 -- INSERT SAMPLE CUSTOMER ORDERS
 -- =====================================================
 
-INSERT INTO customer_orders (order_number, customer_id, preferred_make, preferred_model, preferred_year_min, preferred_year_max, preferred_color, preferred_trim_level, max_mileage_km, min_auction_grade, required_features, order_type, expected_delivery_date, priority_level, preferred_port, shipping_method, include_insurance, budget_min, budget_max, payment_method, special_requests, order_status, is_draft, order_date) VALUES
+INSERT INTO cars.customer_orders (order_number, customer_id, preferred_make, preferred_model, preferred_year_min, preferred_year_max, preferred_color, preferred_trim_level, max_mileage_km, min_auction_grade, required_features, order_type, expected_delivery_date, priority_level, preferred_port, shipping_method, include_insurance, budget_min, budget_max, payment_method, special_requests, order_status, is_draft, order_date) VALUES
                                                                                                                                                                                                                                                                                                                                                                                                                                         ('ORD-2024-001', 1, 'Toyota', 'Aqua', 2020, 2024, 'Pearl White', 'G', 20000, '5/A', '["Navigation System", "Reverse Camera", "Smart Key"]', 'AUCTION', '2024-12-31', 'NORMAL', 'Nagoya', 'VESSEL', true, 3000000, 4000000, 'CASH', 'Low mileage preferred', 'SUBMITTED', false, '2024-09-01'),
                                                                                                                                                                                                                                                                                                                                                                                                                                         ('ORD-2024-002', 3, 'Honda', 'Vezel', 2021, 2024, 'Blue', 'Hybrid Z', 15000, '5AA', '["Navigation System", "Alloy Wheels", "Auto AC"]', 'AUCTION', '2024-11-30', 'HIGH', 'Yokohama', 'CONTAINER', true, 4500000, 6000000, 'FINANCING', 'Hybrid model only', 'PROCESSING', false, '2024-09-05'),
                                                                                                                                                                                                                                                                                                                                                                                                                                         ('ORD-2024-003', 5, 'Toyota', 'Prius', 2019, 2023, 'Silver', 'S', 30000, '4/B', '["ETC", "Power Steering", "ABS"]', 'DIRECT', '2024-10-15', 'URGENT', 'Kobe', 'VESSEL', false, 3500000, 4500000, 'CASH', 'Urgent delivery required', 'MATCHED', false, '2024-08-20'),
@@ -766,7 +775,7 @@ INSERT INTO customer_orders (order_number, customer_id, preferred_make, preferre
 -- INSERT SAMPLE SUPPLIERS
 -- =====================================================
 
-INSERT INTO suppliers (supplier_name, supplier_title, supplier_type, country, contact_number, email, address) VALUES
+INSERT INTO cars.suppliers (supplier_name, supplier_title, supplier_type, country, contact_number, email, address) VALUES
                                                                                                                   ('USS Auction', NULL, 'AUCTION', 'Japan', '+81-3-1234-5678', 'info@uss.co.jp', 'Tokyo, Japan'),
                                                                                                                   ('Honda Japan', NULL, 'DEALER', 'Japan', '+81-3-2345-6789', 'export@honda.co.jp', 'Tokyo, Japan'),
                                                                                                                   ('Toyota Motor Corporation', NULL, 'DEALER', 'Japan', '+81-3-3456-7890', 'export@toyota.co.jp', 'Toyota City, Japan'),
@@ -778,35 +787,35 @@ INSERT INTO suppliers (supplier_name, supplier_title, supplier_type, country, co
 -- =====================================================
 
 -- Reset sequences to continue from current max values
-SELECT setval('vehicles_id_seq', (SELECT COALESCE(MAX(id), 1) FROM vehicles));
-SELECT setval('vehicle_purchases_id_seq', (SELECT COALESCE(MAX(id), 1) FROM vehicle_purchases));
-SELECT setval('vehicle_shipping_id_seq', (SELECT COALESCE(MAX(id), 1) FROM vehicle_shipping));
-SELECT setval('vehicle_financials_id_seq', (SELECT COALESCE(MAX(id), 1) FROM vehicle_financials));
-SELECT setval('vehicle_sales_id_seq', (SELECT COALESCE(MAX(id), 1) FROM vehicle_sales));
-SELECT setval('customers_id_seq', (SELECT COALESCE(MAX(id), 1) FROM customers));
-SELECT setval('customer_orders_id_seq', (SELECT COALESCE(MAX(id), 1) FROM customer_orders));
-SELECT setval('suppliers_id_seq', (SELECT COALESCE(MAX(id), 1) FROM suppliers));
+SELECT setval('cars.vehicles_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cars.vehicles));
+SELECT setval('cars.vehicle_purchases_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cars.vehicle_purchases));
+SELECT setval('cars.vehicle_shipping_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cars.vehicle_shipping));
+SELECT setval('cars.vehicle_financials_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cars.vehicle_financials));
+SELECT setval('cars.vehicle_sales_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cars.vehicle_sales));
+SELECT setval('cars.customers_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cars.customers));
+SELECT setval('cars.customer_orders_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cars.customer_orders));
+SELECT setval('cars.suppliers_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cars.suppliers));
 
 -- =====================================================
 -- VERIFY DATA INSERTION
 -- =====================================================
 
 -- Check inserted data
-SELECT 'Vehicles' as table_name, COUNT(*) as record_count FROM vehicles
+SELECT 'Vehicles' as table_name, COUNT(*) as record_count FROM cars.vehicles
 UNION ALL
-SELECT 'Vehicle Purchases', COUNT(*) FROM vehicle_purchases
+SELECT 'Vehicle Purchases', COUNT(*) FROM cars.vehicle_purchases
 UNION ALL
-SELECT 'Vehicle Shipping', COUNT(*) FROM vehicle_shipping
+SELECT 'Vehicle Shipping', COUNT(*) FROM cars.vehicle_shipping
 UNION ALL
-SELECT 'Vehicle Financials', COUNT(*) FROM vehicle_financials
+SELECT 'Vehicle Financials', COUNT(*) FROM cars.vehicle_financials
 UNION ALL
-SELECT 'Vehicle Sales', COUNT(*) FROM vehicle_sales
+SELECT 'Vehicle Sales', COUNT(*) FROM cars.vehicle_sales
 UNION ALL
-SELECT 'Customers', COUNT(*) FROM customers
+SELECT 'Customers', COUNT(*) FROM cars.customers
 UNION ALL
-SELECT 'Customer Orders', COUNT(*) FROM customer_orders
+SELECT 'Customer Orders', COUNT(*) FROM cars.customer_orders
 UNION ALL
-SELECT 'Suppliers', COUNT(*) FROM suppliers;
+SELECT 'Suppliers', COUNT(*) FROM cars.suppliers;
 
 -- Sample query to test the complete view
 SELECT
@@ -820,16 +829,16 @@ SELECT
     vsl.revenue,
     vsl.profit,
     vsl.sold_to_name
-FROM vehicles v
-         LEFT JOIN vehicle_shipping vs ON v.id = vs.vehicle_id
-         LEFT JOIN vehicle_financials vf ON v.id = vf.vehicle_id
-         LEFT JOIN vehicle_sales vsl ON v.id = vsl.vehicle_id
+FROM cars.vehicles v
+         LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id
+         LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
+         LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
 ORDER BY v.code
     LIMIT 10;
 
-CREATE TABLE vehicle_images (
+CREATE TABLE cars.vehicle_images (
                                 id SERIAL PRIMARY KEY,
-                                vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                                vehicle_id INTEGER NOT NULL REFERENCES cars.vehicles(id) ON DELETE CASCADE,
                                 filename VARCHAR(255) NOT NULL,
                                 original_name VARCHAR(255),
                                 file_path VARCHAR(500) NOT NULL,
@@ -840,4 +849,4 @@ CREATE TABLE vehicle_images (
                                 display_order INTEGER DEFAULT 0
 );
 
-CREATE INDEX idx_vehicle_images_vehicle_id ON vehicle_images(vehicle_id);
+CREATE INDEX idx_vehicle_images_vehicle_id ON cars.vehicle_images(vehicle_id);

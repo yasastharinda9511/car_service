@@ -18,8 +18,8 @@ func NewVehicleFinancialsRepository() *VehicleFinancialsRepository {
 
 func (r *VehicleFinancialsRepository) InsertDefault(ctx context.Context, exec database.Executor, vehicleID int64) error {
 	_, err := exec.ExecContext(ctx, `
-        INSERT INTO vehicle_financials (vehicle_id, charges_lkr, tt_lkr, duty_lkr, 
-        clearing_lkr, other_expenses_lkr, total_cost_lkr) 
+        INSERT INTO cars.vehicle_financials (vehicle_id, charges_lkr, tt_lkr, duty_lkr,
+        clearing_lkr, other_expenses_lkr, total_cost_lkr)
         VALUES ($1, 0, 0, 0, 0, 0, 0)
     `, vehicleID)
 	return err
@@ -29,7 +29,7 @@ func (r *VehicleFinancialsRepository) GetByVehicleID(ctx context.Context, exec d
 	query := `
         SELECT id, vehicle_id, total_cost_lkr, charges_lkr,
         duty_lkr, clearing_lkr, other_expenses_lkr
-        FROM vehicle_financials
+        FROM cars.vehicle_financials
         WHERE vehicle_id = $1
     `
 	var vf entity.VehicleFinancials
@@ -46,7 +46,7 @@ func (r *VehicleFinancialsRepository) GetByVehicleID(ctx context.Context, exec d
 func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context, exec database.Executor, vehicleID int64, request *request.FinancialDetailsRequest) error {
 
 	query := `
-       UPDATE vehicle_financials
+       UPDATE cars.vehicle_financials
        SET charges_lkr = $2,
            tt_lkr = $3,
            duty_lkr = $4,
@@ -63,14 +63,14 @@ func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context
 
 }
 func (r *VehicleFinancialsRepository) GetDetailedFinancialSummary(ctx context.Context, exec database.Executor, filter filters.Filter) (*response.DetailedFinancialSummary, error) {
-	query := `SELECT 
+	query := `SELECT
         COALESCE(SUM(charges_lkr), 0) as total_charges,
         COALESCE(SUM(tt_lkr), 0) as total_tt,
         COALESCE(SUM(duty_lkr), 0) as total_duty,
         COALESCE(SUM(clearing_lkr), 0) as total_clearing,
         COALESCE(SUM(other_expenses_lkr), 0) as total_other_expenses,
         COALESCE(SUM(total_cost_lkr), 0) as total_investment
-    FROM vehicle_financials vf`
+    FROM cars.vehicle_financials vf`
 
 	query, args := filter.GetQuery(query, "", "", -1, -1)
 
