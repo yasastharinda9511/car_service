@@ -19,7 +19,7 @@ type APIServer struct {
 	db     *sql.DB
 }
 
-func NewAPIServer(db *sql.DB) *APIServer {
+func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	server := &APIServer{
 		router: mux.NewRouter(),
 		db:     db,
@@ -28,7 +28,22 @@ func NewAPIServer(db *sql.DB) *APIServer {
 	vehicleService := services.NewVehicleService(db)
 	analyticService := services.NewAnalyticsService(db)
 
-	vehicleController := controllers.NewVehicleController(vehicleService, server.router)
+	// Initialize S3 service if enabled
+	var s3Service *services.S3Service
+	if cfg.UseS3Storage {
+		var err error
+		s3Service, err = services.NewS3Service(cfg.S3BucketName, cfg.S3Region)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize S3 service: %v. Falling back to local storage.", err)
+			cfg.UseS3Storage = false
+		} else {
+			log.Printf("S3 storage enabled: bucket=%s, region=%s", cfg.S3BucketName, cfg.S3Region)
+		}
+	} else {
+		log.Println("Using local file storage for images")
+	}
+
+	vehicleController := controllers.NewVehicleController(vehicleService, s3Service, server.router, cfg.UseS3Storage)
 	analyticController := controllers.NewAnalyticController(analyticService, server.router)
 
 	vehicleController.SetupRoutes()

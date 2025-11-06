@@ -23,7 +23,7 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	apiServer := server.NewAPIServer(database)
+	apiServer := server.NewAPIServer(database, cfg)
 
 	err = apiServer.Start(cfg.Port, cfg.AllowedOrigins)
 	if err != nil {

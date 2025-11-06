@@ -24,13 +24,17 @@ import (
 
 type VehicleController struct {
 	vehicleService *services.VehicleService
+	s3Service      *services.S3Service
 	router         *mux.Router
+	useS3Storage   bool
 }
 
-func NewVehicleController(vehicleService *services.VehicleService, router *mux.Router) *VehicleController {
+func NewVehicleController(vehicleService *services.VehicleService, s3Service *services.S3Service, router *mux.Router, useS3Storage bool) *VehicleController {
 	return &VehicleController{
 		vehicleService: vehicleService,
+		s3Service:      s3Service,
 		router:         router,
+		useS3Storage:   useS3Storage,
 	}
 }
 
@@ -331,7 +335,7 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
-		vc.writeError(w, http.StatusBadRequest, "Invalid make ID")
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
 		return
 	}
 
@@ -344,13 +348,6 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 	files := r.MultipartForm.File["images"]
 	if len(files) == 0 {
 		http.Error(w, "No images provided", http.StatusBadRequest)
-		return
-	}
-
-	// Create upload directory
-	uploadDir := "uploads"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		http.Error(w, "Unable to create upload directory", http.StatusInternalServerError)
 		return
 	}
 
@@ -371,52 +368,72 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 			continue
 		}
 
-		ext := filepath.Ext(fileHeader.Filename)
-		filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
-		filePath := filepath.Join(uploadDir, filename)
-
-		dst, err := os.Create(filePath)
-		if err != nil {
-			file.Close()
-			errors = append(errors, fmt.Sprintf("Unable to create file for %s: %v", fileHeader.Filename, err))
-			continue
-		}
-
-		_, err = io.Copy(dst, file)
-		file.Close()
-		dst.Close()
-
-		if err != nil {
-			os.Remove(filePath)
-			errors = append(errors, fmt.Sprintf("Unable to save file %s: %v", fileHeader.Filename, err))
-			continue
-		}
-
 		var vehicleImage entity.VehicleImage
 		vehicleImage.VehicleID = id
-		vehicleImage.Filename = filename
-		vehicleImage.FilePath = filePath
+		vehicleImage.OriginalName = fileHeader.Filename
 		vehicleImage.FileSize = fileHeader.Size
 		vehicleImage.MimeType = contentType
 		vehicleImage.DisplayOrder = i + 1
 		vehicleImage.IsPrimary = i == 0
 		vehicleImage.UploadDate = time.Now()
-		if err != nil {
-			// Clean up the file if database insert fails
-			os.Remove(filePath)
-			errors = append(errors, fmt.Sprintf("Database error for %s: %v", fileHeader.Filename, err))
-			continue
+
+		if vc.useS3Storage && vc.s3Service != nil {
+			// Upload to S3
+			result, err := vc.s3Service.UploadFile(r.Context(), file, fileHeader, "vehicles/images")
+			file.Close()
+
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("Failed to upload %s to S3: %v", fileHeader.Filename, err))
+				continue
+			}
+
+			vehicleImage.Filename = result.Filename
+			vehicleImage.FilePath = result.Key // Store S3 key in file_path
+		} else {
+			// Upload to local storage
+			uploadDir := "uploads"
+			if err := os.MkdirAll(uploadDir, 0755); err != nil {
+				file.Close()
+				errors = append(errors, fmt.Sprintf("Unable to create upload directory: %v", err))
+				continue
+			}
+
+			ext := filepath.Ext(fileHeader.Filename)
+			filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
+			filePath := filepath.Join(uploadDir, filename)
+
+			dst, err := os.Create(filePath)
+			if err != nil {
+				file.Close()
+				errors = append(errors, fmt.Sprintf("Unable to create file for %s: %v", fileHeader.Filename, err))
+				continue
+			}
+
+			_, err = io.Copy(dst, file)
+			file.Close()
+			dst.Close()
+
+			if err != nil {
+				os.Remove(filePath)
+				errors = append(errors, fmt.Sprintf("Unable to save file %s: %v", fileHeader.Filename, err))
+				continue
+			}
+
+			vehicleImage.Filename = filename
+			vehicleImage.FilePath = filePath
 		}
 
 		uploadedImages = append(uploadedImages, vehicleImage)
 	}
 
 	images, err := vc.vehicleService.InsertVehicleImage(r.Context(), uploadedImages)
+
 	// Prepare response
 	response := map[string]interface{}{
 		"uploaded_images": images,
 		"total_uploaded":  len(images),
 		"total_files":     len(files),
+		"storage_type":    vc.getStorageType(),
 	}
 
 	if len(errors) > 0 {
@@ -437,24 +454,62 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
+func (vc *VehicleController) getStorageType() string {
+	if vc.useS3Storage {
+		return "s3"
+	}
+	return "local"
+}
+
 func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	filename := vars["filename"]
 
 	// Security: validate filename to prevent directory traversal
-	if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+	if strings.Contains(filename, "..") {
 		http.Error(w, "Invalid filename", http.StatusBadRequest)
 		return
 	}
 
-	filePath := filepath.Join("uploads", filename)
+	if vc.useS3Storage && vc.s3Service != nil {
+		// For S3, generate a presigned URL and redirect
+		// The S3 key would be stored in the database as file_path
+		// For this endpoint, we construct the key from the filename
+		key := filepath.Join("vehicles/images", filename)
 
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		http.Error(w, "Image not found", http.StatusNotFound)
-		return
+		// Check if file exists in S3
+		exists, err := vc.s3Service.CheckIfFileExists(r.Context(), key)
+		if err != nil || !exists {
+			http.Error(w, "Image not found", http.StatusNotFound)
+			return
+		}
+
+		// Generate presigned URL (valid for 15 minutes)
+		presignedURL, err := vc.s3Service.GetPresignedURL(r.Context(), key, 15)
+		if err != nil {
+			http.Error(w, "Failed to generate image URL", http.StatusInternalServerError)
+			return
+		}
+
+		// Redirect to the presigned URL
+		http.Redirect(w, r, presignedURL, http.StatusTemporaryRedirect)
+	} else {
+		// Local storage
+		// Additional validation for local storage
+		if strings.Contains(filename, "/") {
+			http.Error(w, "Invalid filename", http.StatusBadRequest)
+			return
+		}
+
+		filePath := filepath.Join("uploads", filename)
+
+		// Check if file exists
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			http.Error(w, "Image not found", http.StatusNotFound)
+			return
+		}
+
+		// Serve the file
+		http.ServeFile(w, r, filePath)
 	}
-
-	// Serve the file
-	http.ServeFile(w, r, filePath)
 }

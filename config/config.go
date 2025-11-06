@@ -12,6 +12,9 @@ type Config struct {
 	DatabaseURL    string
 	Environment    string
 	AllowedOrigins []string
+	S3BucketName   string
+	S3Region       string
+	UseS3Storage   bool
 }
 
 func Load() (*Config, error) {
@@ -19,6 +22,9 @@ func Load() (*Config, error) {
 		Port:           getEnv("PORT", "8080"),
 		Environment:    getEnv("ENVIRONMENT", "development"),
 		AllowedOrigins: getEnvAsSlice("ALLOWED_ORIGINS", []string{"*"}),
+		S3BucketName:   getEnv("S3_BUCKET_NAME", ""),
+		S3Region:       getEnv("S3_REGION", "us-east-1"),
+		UseS3Storage:   getEnv("USE_S3_STORAGE", "false") == "true",
 	}
 
 	// Build database URL
