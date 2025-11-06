@@ -45,7 +45,7 @@ func (ac *AnalyticsController) writeError(w http.ResponseWriter, status int, mes
 }
 
 func (ac *AnalyticsController) SetupRoutes() {
-	api := ac.router.PathPrefix("/api/v1").Subrouter()
+	api := ac.router.PathPrefix("/car-service/api/v1").Subrouter()
 
 	vehicles := api.PathPrefix("/analytics").Subrouter()
 	vehicles.HandleFunc("/shipping-status", ac.getShippingStatusCount).Methods("GET")
