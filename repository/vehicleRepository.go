@@ -289,3 +289,117 @@ func (s *VehicleRepository) GetVehicleBrandCount(ctx context.Context, exec datab
 
 	return results, nil
 }
+
+// DropdownOptions holds all the distinct values for dropdown filters
+type DropdownOptions struct {
+	MakesModels       map[string][]string `json:"makes_models"`
+	Colors            []string            `json:"colors"`
+	ShippingStatuses  []string            `json:"shipping_statuses"`
+	SaleStatuses      []string            `json:"sale_statuses"`
+	ConditionStatuses []string            `json:"condition_statuses"`
+	Currencies        []string            `json:"currencies"`
+	Years             []int               `json:"years"`
+}
+
+// GetDropdownOptions returns all distinct values for dropdown filters in a single query
+func (s *VehicleRepository) GetDropdownOptions(ctx context.Context, exec database.Executor) (*DropdownOptions, error) {
+	options := &DropdownOptions{
+		MakesModels: make(map[string][]string),
+	}
+
+	// Get distinct makes and models
+	makesModelsQuery := `
+		SELECT DISTINCT v.make, v.model
+		FROM cars.vehicles v
+		ORDER BY v.make, v.model
+	`
+	rows, err := exec.QueryContext(ctx, makesModelsQuery)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var make, model string
+		if err := rows.Scan(&make, &model); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		options.MakesModels[make] = append(options.MakesModels[make], model)
+	}
+	rows.Close()
+
+	// Get distinct colors
+	colorsQuery := `
+		SELECT DISTINCT v.color
+		FROM cars.vehicles v
+		WHERE v.color IS NOT NULL AND v.color != ''
+		ORDER BY v.color
+	`
+	rows, err = exec.QueryContext(ctx, colorsQuery)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var color string
+		if err := rows.Scan(&color); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		options.Colors = append(options.Colors, color)
+	}
+	rows.Close()
+
+	// Use predefined enum values for shipping statuses
+	options.ShippingStatuses = []string{
+		"PROCESSING",
+		"IN_TRANSIT",
+		"ARRIVED",
+		"CLEARED",
+		"DELAYED",
+	}
+
+	// Use predefined enum values for sale statuses
+	options.SaleStatuses = []string{
+		"AVAILABLE",
+		"RESERVED",
+		"SOLD",
+		"CANCELLED",
+	}
+
+	// Use predefined enum values for condition statuses
+	options.ConditionStatuses = []string{
+		"REGISTERED",
+		"UNREGISTERED",
+	}
+
+	// Use predefined enum values for currencies
+	options.Currencies = []string{
+		"JPY",
+		"USD",
+		"LKR",
+		"EUR",
+		"GBP",
+	}
+
+	// Get distinct years (year_of_manufacture)
+	yearsQuery := `
+		SELECT DISTINCT v.year_of_manufacture
+		FROM cars.vehicles v
+		WHERE v.year_of_manufacture IS NOT NULL
+		ORDER BY v.year_of_manufacture DESC
+	`
+	rows, err = exec.QueryContext(ctx, yearsQuery)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var year int
+		if err := rows.Scan(&year); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		options.Years = append(options.Years, year)
+	}
+	rows.Close()
+
+	return options, nil
+}

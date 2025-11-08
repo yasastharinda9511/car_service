@@ -201,6 +201,10 @@ func (s *VehicleService) UpdateVehicleDetails(ctx context.Context, vehicleID int
 	return err
 }
 
+func (s *VehicleService) GetDropdownOptions(ctx context.Context) (*repository.DropdownOptions, error) {
+	return s.vehicleRepository.GetDropdownOptions(ctx, s.db)
+}
+
 //
 //func (s *VehicleService) CreateVehicleMake(vehicleMake request.CreateVehicleMake) (*entity.VehicleMake, error) {
 //	query := `

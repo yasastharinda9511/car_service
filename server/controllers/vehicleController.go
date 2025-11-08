@@ -66,6 +66,9 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.HandleFunc("/{id}/sales", vc.updateSales).Methods("PUT")
 	vehicles.HandleFunc("/{id}", vc.updateVehicle).Methods("PUT")
 
+	// Dropdown data route
+	vehicles.HandleFunc("/dropdown/options", vc.getDropdownOptions).Methods("GET")
+
 }
 
 func (vc *VehicleController) getVehicles(w http.ResponseWriter, r *http.Request) {
@@ -512,4 +515,17 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 		// Serve the file
 		http.ServeFile(w, r, filePath)
 	}
+}
+
+// getDropdownOptions returns all distinct values for dropdown filters in a single call
+func (vc *VehicleController) getDropdownOptions(w http.ResponseWriter, r *http.Request) {
+	options, err := vc.vehicleService.GetDropdownOptions(r.Context())
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": options,
+	})
 }
