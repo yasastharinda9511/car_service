@@ -101,6 +101,7 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 	defer rows.Close()
 
 	vehicleMap := make(map[int]*entity.VehicleComplete)
+	vehicleOrder := make([]int, 0) // Track order of vehicle IDs as they appear
 
 	for rows.Next() {
 		var vc entity.VehicleComplete
@@ -131,25 +132,30 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 			return nil, err
 		}
 
-		vehicleID := vc.Vehicle.ID
+		vehicleID := int(vc.Vehicle.ID)
 
-		if existingVehicle, exists := vehicleMap[int(vehicleID)]; exists {
+		if existingVehicle, exists := vehicleMap[vehicleID]; exists {
+			// Vehicle already exists, just append the image
 			if img.ID > 0 {
 				existingVehicle.VehicleImages = append(existingVehicle.VehicleImages, img)
 			}
 		} else {
+			// New vehicle, add to map and track order
 			vc.VehicleImages = []entity.VehicleImage{}
 			if img.ID > 0 {
 				vc.VehicleImages = append(vc.VehicleImages, img)
 			}
-			vehicleMap[int(vehicleID)] = &vc
+			vehicleMap[vehicleID] = &vc
+			vehicleOrder = append(vehicleOrder, vehicleID) // Preserve SQL order
 		}
 	}
 
-	// Convert map to slice
-	var vehicles []entity.VehicleComplete
-	for _, vehicle := range vehicleMap {
-		vehicles = append(vehicles, *vehicle)
+	// Convert map to slice using preserved order
+	vehicles := make([]entity.VehicleComplete, 0, len(vehicleOrder))
+	for _, vehicleID := range vehicleOrder {
+		if vehicle, exists := vehicleMap[vehicleID]; exists {
+			vehicles = append(vehicles, *vehicle)
+		}
 	}
 
 	return vehicles, nil
