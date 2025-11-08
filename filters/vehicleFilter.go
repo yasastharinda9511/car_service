@@ -52,8 +52,8 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 	}
 
 	v.ShippingStatus = r.URL.Query().Get("shipping_status")
-	if v.ConditionStatus != "" {
-		v.QueryBuilder.AddCondition("vp.shipping_status", v.ShippingStatus)
+	if v.ShippingStatus != "" {
+		v.QueryBuilder.AddCondition("vs.shipping_status", v.ShippingStatus)
 	}
 
 	v.SaleStatus = r.URL.Query().Get("sale_status")
