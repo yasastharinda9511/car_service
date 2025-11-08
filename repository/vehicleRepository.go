@@ -164,7 +164,7 @@ func (s *VehicleRepository) GetAllVehicleCount(ctx context.Context, exec databas
         LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
         LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id`
 
-	query, args := filter.GetQuery(query, "", "", -1, -1)
+	query, args := filter.GetQueryForCount(query, "", "", -1, -1)
 
 	err := exec.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
@@ -261,7 +261,7 @@ func (s *VehicleRepository) GetVehicleBrandCount(ctx context.Context, exec datab
     COUNT(*) as vehicle_count
 	FROM cars.vehicles v`
 
-	query, args := filter.GetQuery(query, "v.make", "", -1, -1)
+	query, args := filter.GetQueryForCount(query, "v.make", "", -1, -1)
 	rows, err := exec.QueryContext(ctx, query, args...)
 
 	if err != nil {

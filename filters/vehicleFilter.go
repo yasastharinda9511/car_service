@@ -38,32 +38,32 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 
 	v.Make = r.URL.Query().Get("make")
 	if v.Make != "" {
-		v.QueryBuilder.AddCondition("v.make", v.Make)
+		v.QueryBuilder.AddCondition(GetMappedField("make"), v.Make)
 	}
 
 	v.Model = r.URL.Query().Get("model")
 	if v.Model != "" {
-		v.QueryBuilder.AddCondition("v.model", v.Model)
+		v.QueryBuilder.AddCondition(GetMappedField("model"), v.Model)
 	}
 
 	v.ConditionStatus = r.URL.Query().Get("condition_status")
 	if v.ConditionStatus != "" {
-		v.QueryBuilder.AddCondition("v.condition_status", v.ConditionStatus)
+		v.QueryBuilder.AddCondition(GetMappedField("condition_status"), v.ConditionStatus)
 	}
 
 	v.ShippingStatus = r.URL.Query().Get("shipping_status")
 	if v.ShippingStatus != "" {
-		v.QueryBuilder.AddCondition("vs.shipping_status", v.ShippingStatus)
+		v.QueryBuilder.AddCondition(GetMappedField("shipping_status"), v.ShippingStatus)
 	}
 
 	v.SaleStatus = r.URL.Query().Get("sale_status")
 	if v.SaleStatus != "" {
-		v.QueryBuilder.AddCondition("v.sale_status", v.SaleStatus)
+		v.QueryBuilder.AddCondition(GetMappedField("sale_status"), v.SaleStatus)
 	}
 
 	if year := r.URL.Query().Get("year"); year != "" {
 		v.Year, _ = strconv.Atoi(year)
-		v.QueryBuilder.AddCondition("v.year_of_manufacture", v.Year)
+		v.QueryBuilder.AddCondition(GetMappedField("year"), v.Year)
 	}
 
 	v.Search = r.URL.Query().Get("search")
@@ -80,11 +80,11 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 	}
 
 	if v.MileageMin != 0 && v.MileageMax != 0 {
-		v.QueryBuilder.AddRangeCondition("v.mileage_km", v.MileageMin, v.MileageMax)
+		v.QueryBuilder.AddRangeCondition(GetMappedField("mileage"), v.MileageMin, v.MileageMax)
 	} else if v.MileageMin != 0 {
-		v.QueryBuilder.AddMinRangeCondition("v.mileage_km", v.MileageMin)
+		v.QueryBuilder.AddMinRangeCondition(GetMappedField("mileage"), v.MileageMin)
 	} else if v.MileageMax != 0 {
-		v.QueryBuilder.AddMaxRangeCondition("v.mileage_km", v.MileageMax)
+		v.QueryBuilder.AddMaxRangeCondition(GetMappedField("mileage"), v.MileageMax)
 	}
 
 	if yearMin := r.URL.Query().Get("year_min"); yearMin != "" {
@@ -94,16 +94,16 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 		v.YearMax, _ = strconv.Atoi(yearMax)
 	}
 	if (v.YearMin != 0 && v.YearMax != 0) && v.Year == 0 {
-		v.QueryBuilder.AddRangeCondition("v.year_of_manufacture", v.MileageMin, v.MileageMax)
+		v.QueryBuilder.AddRangeCondition(GetMappedField("year"), v.YearMin, v.YearMax)
 	} else if v.YearMin != 0 && v.YearMax == 0 {
-		v.QueryBuilder.AddMinRangeCondition("v.year_of_manufacture", v.YearMin)
+		v.QueryBuilder.AddMinRangeCondition(GetMappedField("year"), v.YearMin)
 	} else if v.YearMax != 0 && v.Year == 0 {
-		v.QueryBuilder.AddMaxRangeCondition("v.year_of_manufacture", v.YearMax)
+		v.QueryBuilder.AddMaxRangeCondition(GetMappedField("year"), v.YearMax)
 	}
 
 	v.Color = r.URL.Query().Get("color")
 	if v.Color != "" {
-		v.QueryBuilder.AddCondition("v.color", v.Color)
+		v.QueryBuilder.AddCondition(GetMappedField("color"), v.Color)
 	}
 
 	dateFromStr := r.URL.Query().Get("dateRangeStart")
@@ -124,16 +124,35 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 	}
 
 	if v.DateFrom != nil && v.DateTo != nil {
-		v.QueryBuilder.AddRangeCondition("v.created_at", *v.DateFrom, *v.DateTo)
+		v.QueryBuilder.AddRangeCondition(GetMappedField("created_at"), *v.DateFrom, *v.DateTo)
 	} else if v.DateTo != nil {
-		v.QueryBuilder.AddMinRangeCondition("v.created_at", *v.DateTo)
+		v.QueryBuilder.AddMinRangeCondition(GetMappedField("created_at"), *v.DateTo)
 	} else if v.DateFrom != nil {
-		v.QueryBuilder.AddMaxRangeCondition("v.created_at", *v.DateFrom)
+		v.QueryBuilder.AddMaxRangeCondition(GetMappedField("created_at"), *v.DateFrom)
+	}
+
+	orderBy := r.URL.Query().Get("order_by")
+	sort := r.URL.Query().Get("sort")
+	if orderBy != "" {
+		// Validate and map the orderBy field
+		if IsValidOrderByField(orderBy) {
+			if sort == "" {
+				sort = "ASC" // default sort order
+			}
+			// Map the user-friendly field name to database field with alias
+			mappedField := GetMappedField(orderBy)
+			v.QueryBuilder.AddOrderBy(mappedField, sort)
+		}
+		// If invalid field, silently ignore (or you can return an error)
 	}
 
 	return v
 }
 
 func (v *VehicleFilters) GetQuery(baseQuery string, groupBy string, orderBy string, limit, offset int) (string, []interface{}) {
-	return v.QueryBuilder.Build(baseQuery, groupBy, orderBy, limit, offset)
+	return v.QueryBuilder.Build(baseQuery, groupBy, orderBy, limit, offset, false)
+}
+
+func (v *VehicleFilters) GetQueryForCount(baseQuery string, groupBy string, orderBy string, limit, offset int) (string, []interface{}) {
+	return v.QueryBuilder.Build(baseQuery, groupBy, orderBy, limit, offset, true)
 }

@@ -10,6 +10,7 @@ type QueryBuilder struct {
 	baseQuery  string
 	conditions []Condition
 	args       []interface{}
+	orderBy    *OrderBy
 	argCounter int
 }
 
@@ -18,6 +19,7 @@ func NewQueryBuilder() *QueryBuilder {
 	return &QueryBuilder{
 		conditions: make([]Condition, 0),
 		args:       make([]interface{}, 0),
+		orderBy:    nil,
 		argCounter: 0,
 	}
 }
@@ -67,6 +69,10 @@ func (qb *QueryBuilder) AddMaxRangeCondition(field string, arg interface{}) {
 	qb.args = append(qb.args, arg)
 }
 
+func (qb *QueryBuilder) AddOrderBy(field string, sortingOrder string) {
+	qb.orderBy = NewOrderBy(field, sortingOrder)
+}
+
 //
 //// AddInCondition adds an IN condition for array values
 //func (qb *QueryBuilder) AddInCondition(field string, values []string) {
@@ -86,7 +92,7 @@ func (qb *QueryBuilder) AddMaxRangeCondition(field string, arg interface{}) {
 //}
 
 // Build constructs the final query
-func (qb *QueryBuilder) Build(baseQuery string, groupBy string, orderBy string, limit int, offset int) (string, []interface{}) {
+func (qb *QueryBuilder) Build(baseQuery string, groupBy string, orderBy string, limit int, offset int, skipOrderBy bool) (string, []interface{}) {
 	query := baseQuery
 
 	// Add WHERE conditions
@@ -98,13 +104,18 @@ func (qb *QueryBuilder) Build(baseQuery string, groupBy string, orderBy string, 
 		query += " WHERE " + strings.Join(placeholders, " AND ")
 	}
 
+	// Add GROUP BY
 	if groupBy != "" {
 		query += " GROUP BY " + groupBy
 	}
 
-	// Add ORDER BY
-	if orderBy != "" {
-		query += " ORDER BY " + orderBy
+	// Add ORDER BY (skip for count queries)
+	if !skipOrderBy {
+		if qb.orderBy != nil {
+			query += " " + qb.orderBy.assemble()
+		} else if orderBy != "" {
+			query += " ORDER BY " + orderBy
+		}
 	}
 
 	// Add LIMIT and OFFSET

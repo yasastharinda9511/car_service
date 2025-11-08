@@ -46,5 +46,9 @@ func (v *VehicleShippingFilter) GetValuesFromRequest(r *http.Request) Filter {
 }
 
 func (v *VehicleShippingFilter) GetQuery(baseQuery string, groupBy string, orderBy string, limit, offset int) (string, []interface{}) {
-	return v.QueryBuilder.Build(baseQuery, groupBy, orderBy, limit, offset)
+	return v.QueryBuilder.Build(baseQuery, groupBy, orderBy, limit, offset, false)
+}
+
+func (v *VehicleShippingFilter) GetQueryForCount(baseQuery string, groupBy string, orderBy string, limit int, offset int) (string, []interface{}) {
+	return v.QueryBuilder.Build(baseQuery, groupBy, orderBy, limit, offset, true)
 }
