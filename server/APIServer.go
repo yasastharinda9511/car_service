@@ -43,7 +43,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 		log.Println("Using local file storage for images")
 	}
 
-	vehicleController := controllers.NewVehicleController(vehicleService, s3Service, server.router, cfg.UseS3Storage)
+	vehicleController := controllers.NewVehicleController(vehicleService, s3Service, server.router, cfg.IntrospectURL)
 	analyticController := controllers.NewAnalyticController(analyticService, server.router)
 
 	vehicleController.SetupRoutes()

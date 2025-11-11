@@ -3,6 +3,7 @@ package controllers
 import (
 	"car_service/dto/request"
 	"car_service/filters"
+	"car_service/middleware"
 	"car_service/services"
 	"net/http"
 
@@ -11,14 +12,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -26,15 +24,15 @@ type VehicleController struct {
 	vehicleService *services.VehicleService
 	s3Service      *services.S3Service
 	router         *mux.Router
-	useS3Storage   bool
+	introspectURL  string
 }
 
-func NewVehicleController(vehicleService *services.VehicleService, s3Service *services.S3Service, router *mux.Router, useS3Storage bool) *VehicleController {
+func NewVehicleController(vehicleService *services.VehicleService, s3Service *services.S3Service, router *mux.Router, introspectURL string) *VehicleController {
 	return &VehicleController{
 		vehicleService: vehicleService,
 		s3Service:      s3Service,
 		router:         router,
-		useS3Storage:   useS3Storage,
+		introspectURL:  introspectURL,
 	}
 }
 
@@ -51,20 +49,22 @@ func (vc *VehicleController) writeError(w http.ResponseWriter, status int, messa
 func (vc *VehicleController) SetupRoutes() {
 
 	api := vc.router.PathPrefix("/car-service/api/v1").Subrouter()
+	authMiddleware := middleware.NewAuthMiddleware(vc.introspectURL)
 
 	// Vehicle routes
 	vehicles := api.PathPrefix("/vehicles").Subrouter()
-	vehicles.HandleFunc("", vc.getVehicles).Methods("GET")
-	vehicles.HandleFunc("/{id}", vc.getVehicle).Methods("GET")
-	vehicles.HandleFunc("", vc.createVehicle).Methods("POST")
-	vehicles.HandleFunc("/upload-image/{filename}", vc.serveImageHandler).Methods("GET")
-	vehicles.HandleFunc("/upload-image/{id}", vc.uploadImageHandler).Methods("POST")
 
-	vehicles.HandleFunc("/{id}/shipping", vc.updateShipping).Methods("PUT")
-	vehicles.HandleFunc("/{id}/purchase", vc.updatePurchase).Methods("PUT")
-	vehicles.HandleFunc("/{id}/financials", vc.updateFinancials).Methods("PUT")
-	vehicles.HandleFunc("/{id}/sales", vc.updateSales).Methods("PUT")
-	vehicles.HandleFunc("/{id}", vc.updateVehicle).Methods("PUT")
+	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicles), "vehicles.access")).Methods("GET")
+	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicle), "vehicles.access")).Methods("GET")
+	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.createVehicle), "vehicles.create")).Methods("POST")
+	vehicles.Handle("/upload-image/{filename}", authMiddleware.Authorize(http.HandlerFunc(vc.serveImageHandler), "vehicles.create")).Methods("GET")
+	vehicles.Handle("/upload-image/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadImageHandler), "vehicle.create")).Methods("POST")
+
+	vehicles.Handle("/{id}/shipping", authMiddleware.Authorize(http.HandlerFunc(vc.updateShipping), "shipping.edit")).Methods("PUT")
+	vehicles.Handle("/{id}/purchase", authMiddleware.Authorize(http.HandlerFunc(vc.updatePurchase), "purchase.edit")).Methods("PUT")
+	vehicles.Handle("/{id}/financials", authMiddleware.Authorize(http.HandlerFunc(vc.updateFinancials), "financial.edit")).Methods("PUT")
+	vehicles.Handle("/{id}/sales", authMiddleware.Authorize(http.HandlerFunc(vc.updateSales), "sales.edit")).Methods("PUT")
+	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.updateVehicle), "vehicles.edit")).Methods("PUT")
 
 	// Dropdown data route
 	vehicles.HandleFunc("/dropdown/options", vc.getDropdownOptions).Methods("GET")
@@ -347,7 +347,6 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Get all files from the "images" field
 	files := r.MultipartForm.File["images"]
 	if len(files) == 0 {
 		http.Error(w, "No images provided", http.StatusBadRequest)
@@ -380,7 +379,7 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 		vehicleImage.IsPrimary = i == 0
 		vehicleImage.UploadDate = time.Now()
 
-		if vc.useS3Storage && vc.s3Service != nil {
+		if vc.s3Service != nil {
 			// Upload to S3
 			result, err := vc.s3Service.UploadFile(r.Context(), file, fileHeader, "vehicles/images")
 			file.Close()
@@ -392,38 +391,6 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 
 			vehicleImage.Filename = result.Filename
 			vehicleImage.FilePath = result.Key // Store S3 key in file_path
-		} else {
-			// Upload to local storage
-			uploadDir := "uploads"
-			if err := os.MkdirAll(uploadDir, 0755); err != nil {
-				file.Close()
-				errors = append(errors, fmt.Sprintf("Unable to create upload directory: %v", err))
-				continue
-			}
-
-			ext := filepath.Ext(fileHeader.Filename)
-			filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
-			filePath := filepath.Join(uploadDir, filename)
-
-			dst, err := os.Create(filePath)
-			if err != nil {
-				file.Close()
-				errors = append(errors, fmt.Sprintf("Unable to create file for %s: %v", fileHeader.Filename, err))
-				continue
-			}
-
-			_, err = io.Copy(dst, file)
-			file.Close()
-			dst.Close()
-
-			if err != nil {
-				os.Remove(filePath)
-				errors = append(errors, fmt.Sprintf("Unable to save file %s: %v", fileHeader.Filename, err))
-				continue
-			}
-
-			vehicleImage.Filename = filename
-			vehicleImage.FilePath = filePath
 		}
 
 		uploadedImages = append(uploadedImages, vehicleImage)
@@ -436,7 +403,7 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 		"uploaded_images": images,
 		"total_uploaded":  len(images),
 		"total_files":     len(files),
-		"storage_type":    vc.getStorageType(),
+		"storage_type":    "s3",
 	}
 
 	if len(errors) > 0 {
@@ -457,13 +424,6 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
-func (vc *VehicleController) getStorageType() string {
-	if vc.useS3Storage {
-		return "s3"
-	}
-	return "local"
-}
-
 func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	filename := vars["filename"]
@@ -474,7 +434,7 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if vc.useS3Storage && vc.s3Service != nil {
+	if vc.s3Service != nil {
 		// For S3, generate a presigned URL and redirect
 		// The S3 key would be stored in the database as file_path
 		// For this endpoint, we construct the key from the filename
@@ -496,24 +456,6 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 
 		// Redirect to the presigned URL
 		http.Redirect(w, r, presignedURL, http.StatusTemporaryRedirect)
-	} else {
-		// Local storage
-		// Additional validation for local storage
-		if strings.Contains(filename, "/") {
-			http.Error(w, "Invalid filename", http.StatusBadRequest)
-			return
-		}
-
-		filePath := filepath.Join("uploads", filename)
-
-		// Check if file exists
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			http.Error(w, "Image not found", http.StatusNotFound)
-			return
-		}
-
-		// Serve the file
-		http.ServeFile(w, r, filePath)
 	}
 }
 

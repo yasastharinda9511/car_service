@@ -15,6 +15,7 @@ type Config struct {
 	S3BucketName   string
 	S3Region       string
 	UseS3Storage   bool
+	IntrospectURL  string
 }
 
 func Load() (*Config, error) {
@@ -25,6 +26,7 @@ func Load() (*Config, error) {
 		S3BucketName:   getEnv("S3_BUCKET_NAME", ""),
 		S3Region:       getEnv("S3_REGION", "us-east-1"),
 		UseS3Storage:   getEnv("USE_S3_STORAGE", "false") == "true",
+		IntrospectURL:  getEnv("INTROSPECT_URL", "http://localhost:8080/"),
 	}
 
 	// Build database URL
