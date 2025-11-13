@@ -6,13 +6,13 @@ import (
 	"car_service/middleware"
 	"car_service/services"
 	"net/http"
+	"path"
 
 	"car_service/entity"
 	"car_service/util"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -57,8 +57,8 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicles), "vehicles.access")).Methods("GET")
 	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicle), "vehicles.access")).Methods("GET")
 	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.createVehicle), "vehicles.create")).Methods("POST")
-	vehicles.Handle("/upload-image/{filename}", authMiddleware.Authorize(http.HandlerFunc(vc.serveImageHandler), "vehicles.create")).Methods("GET")
-	vehicles.Handle("/upload-image/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadImageHandler), "vehicle.create")).Methods("POST")
+	vehicles.Handle("/download-image/{filename}", authMiddleware.Authorize(http.HandlerFunc(vc.serveImageHandler), "vehicles.create")).Methods("GET")
+	vehicles.Handle("/upload-image/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadImageHandler), "vehicles.create")).Methods("POST")
 
 	vehicles.Handle("/{id}/shipping", authMiddleware.Authorize(http.HandlerFunc(vc.updateShipping), "shipping.edit")).Methods("PUT")
 	vehicles.Handle("/{id}/purchase", authMiddleware.Authorize(http.HandlerFunc(vc.updatePurchase), "purchase.edit")).Methods("PUT")
@@ -380,7 +380,6 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 		vehicleImage.UploadDate = time.Now()
 
 		if vc.s3Service != nil {
-			// Upload to S3
 			result, err := vc.s3Service.UploadFile(r.Context(), file, fileHeader, "vehicles/images")
 			file.Close()
 
@@ -438,9 +437,9 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 		// For S3, generate a presigned URL and redirect
 		// The S3 key would be stored in the database as file_path
 		// For this endpoint, we construct the key from the filename
-		key := filepath.Join("vehicles/images", filename)
+		key := path.Join("vehicles/images", filename)
 
-		// Check if file exists in S3
+		//// Check if file exists in S3
 		exists, err := vc.s3Service.CheckIfFileExists(r.Context(), key)
 		if err != nil || !exists {
 			http.Error(w, "Image not found", http.StatusNotFound)
@@ -455,7 +454,9 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 		}
 
 		// Redirect to the presigned URL
-		http.Redirect(w, r, presignedURL, http.StatusTemporaryRedirect)
+		vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+			"data": presignedURL,
+		})
 	}
 }
 

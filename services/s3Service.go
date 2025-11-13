@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"car_service/dto/response"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"mime/multipart"
 	"path/filepath"
 	"time"
+
+	"path"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -58,7 +61,7 @@ func (s *S3Service) UploadFile(ctx context.Context, file multipart.File, fileHea
 	filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
 
 	// Create S3 key with prefix (e.g., "vehicles/images/uuid_timestamp.jpg")
-	key := filepath.Join(prefix, filename)
+	key := path.Join(prefix, filename)
 
 	// Upload to S3
 	log.Printf("Uploading %s to %s", fileHeader.Filename, key)
@@ -85,7 +88,7 @@ func (s *S3Service) UploadFile(ctx context.Context, file multipart.File, fileHea
 }
 
 // GetPresignedURL generates a presigned URL for downloading a file
-func (s *S3Service) GetPresignedURL(ctx context.Context, key string, expirationMinutes int) (string, error) {
+func (s *S3Service) GetPresignedURL(ctx context.Context, key string, expirationMinutes int) (*response.PresignedURLResponse, error) {
 	presignClient := s3.NewPresignClient(s.client)
 
 	request, err := presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
@@ -96,10 +99,12 @@ func (s *S3Service) GetPresignedURL(ctx context.Context, key string, expirationM
 	})
 
 	if err != nil {
-		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+		return nil, fmt.Errorf("failed to generate presigned URL: %w", err)
 	}
 
-	return request.URL, nil
+	var preSignedURL response.PresignedURLResponse
+	preSignedURL.PresignedURL = request.URL
+	return &preSignedURL, nil
 }
 
 // DeleteFile deletes a file from S3
