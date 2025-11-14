@@ -371,7 +371,7 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 		}
 
 		var vehicleImage entity.VehicleImage
-		vehicleImage.VehicleID = id
+		vehicleImage.VehicleID = int64(id)
 		vehicleImage.OriginalName = fileHeader.Filename
 		vehicleImage.FileSize = fileHeader.Size
 		vehicleImage.MimeType = contentType

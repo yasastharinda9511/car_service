@@ -6,6 +6,8 @@ import (
 	"car_service/entity"
 	"car_service/filters"
 	"context"
+	"fmt"
+	"strings"
 )
 
 type VehicleRepository struct{}
@@ -72,25 +74,13 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 			COALESCE(vp.lc_bank, '') AS lc_bank,
 			COALESCE(vp.lc_number, '') AS lc_number,
 			COALESCE(vp.lc_cost_jpy, 0) AS lc_cost_jpy,
-			COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date,
-
-			COALESCE(vi.id, 0) AS vi_id,
-			COALESCE(vi.vehicle_id, 0) AS vi_vehicle_id,
-			COALESCE(vi.filename, '') AS filename,
-			COALESCE(vi.original_name, '') AS original_name,
-			COALESCE(vi.file_path, '') AS file_path,
-			COALESCE(vi.file_size, 0) AS file_size,
-			COALESCE(vi.mime_type, '') AS mime_type,
-			COALESCE(vi.is_primary, false) AS is_primary,
-			COALESCE(vi.upload_date, '1970-01-01') AS upload_date,
-			COALESCE(vi.display_order, 0) AS display_order
+			COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date
 
 		FROM cars.vehicles v
 		LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id
 		LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
 		LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
 		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id
-		LEFT JOIN cars.vehicle_images vi ON v.id = vi.vehicle_id
 	`
 
 	query, args := filter.GetQuery(query, "", "", limit, offset)
@@ -100,12 +90,11 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 	}
 	defer rows.Close()
 
-	vehicleMap := make(map[int]*entity.VehicleComplete)
-	vehicleOrder := make([]int, 0) // Track order of vehicle IDs as they appear
+	vehicles := make([]entity.VehicleComplete, 0)
+	vehicleIDs := make([]int64, 0)
 
 	for rows.Next() {
 		var vc entity.VehicleComplete
-		var img entity.VehicleImage
 
 		err := rows.Scan(
 			&vc.Vehicle.ID, &vc.Vehicle.Code, &vc.Vehicle.Make, &vc.Vehicle.Model, &vc.Vehicle.TrimLevel, &vc.Vehicle.YearOfManufacture,
@@ -123,44 +112,111 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 			&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID, &vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
 			&vc.VehiclePurchase.BoughtFromContact, &vc.VehiclePurchase.BoughtFromAddress, &vc.VehiclePurchase.BoughtFromOtherContacts,
 			&vc.VehiclePurchase.PurchaseRemarks, &vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber, &vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
-
-			&img.ID, &img.VehicleID, &img.Filename, &img.OriginalName,
-			&img.FilePath, &img.FileSize, &img.MimeType, &img.IsPrimary,
-			&img.UploadDate, &img.DisplayOrder,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		vehicleID := int(vc.Vehicle.ID)
+		// Initialize empty images slice
+		vc.VehicleImages = []entity.VehicleImage{}
 
-		if existingVehicle, exists := vehicleMap[vehicleID]; exists {
-			// Vehicle already exists, just append the image
-			if img.ID > 0 {
-				existingVehicle.VehicleImages = append(existingVehicle.VehicleImages, img)
-			}
-		} else {
-			// New vehicle, add to map and track order
-			vc.VehicleImages = []entity.VehicleImage{}
-			if img.ID > 0 {
-				vc.VehicleImages = append(vc.VehicleImages, img)
-			}
-			vehicleMap[vehicleID] = &vc
-			vehicleOrder = append(vehicleOrder, vehicleID) // Preserve SQL order
-		}
+		vehicles = append(vehicles, vc)
+		vehicleIDs = append(vehicleIDs, vc.Vehicle.ID)
 	}
 
-	// Convert map to slice using preserved order
-	vehicles := make([]entity.VehicleComplete, 0, len(vehicleOrder))
-	for _, vehicleID := range vehicleOrder {
-		if vehicle, exists := vehicleMap[vehicleID]; exists {
-			vehicles = append(vehicles, *vehicle)
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// If no vehicles found, return empty slice
+	if len(vehicleIDs) == 0 {
+		return vehicles, nil
+	}
+
+	// Now fetch all images for these vehicles in a single query
+	images, err := s.getImagesByVehicleIDs(ctx, exec, vehicleIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Map images to their respective vehicles
+	for i := range vehicles {
+		vehicleID := vehicles[i].Vehicle.ID
+		if imgs, ok := images[vehicleID]; ok {
+			vehicles[i].VehicleImages = imgs
 		}
 	}
 
 	return vehicles, nil
 }
 
+// Helper method to fetch images for multiple vehicles
+func (s *VehicleRepository) getImagesByVehicleIDs(ctx context.Context, exec database.Executor, vehicleIDs []int64) (map[int64][]entity.VehicleImage, error) {
+	if len(vehicleIDs) == 0 {
+		return make(map[int64][]entity.VehicleImage), nil
+	}
+
+	// Build the IN clause with placeholders
+	placeholders := make([]string, len(vehicleIDs))
+	args := make([]interface{}, len(vehicleIDs))
+	for i, id := range vehicleIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT 
+			id,
+			vehicle_id,
+			filename,
+			original_name,
+			file_path,
+			file_size,
+			mime_type,
+			is_primary,
+			upload_date,
+			display_order
+		FROM cars.vehicle_images
+		WHERE vehicle_id IN (%s)
+		ORDER BY vehicle_id, display_order
+	`, strings.Join(placeholders, ","))
+
+	rows, err := exec.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Map to group images by vehicle_id
+	imageMap := make(map[int64][]entity.VehicleImage)
+
+	for rows.Next() {
+		var img entity.VehicleImage
+		err := rows.Scan(
+			&img.ID,
+			&img.VehicleID,
+			&img.Filename,
+			&img.OriginalName,
+			&img.FilePath,
+			&img.FileSize,
+			&img.MimeType,
+			&img.IsPrimary,
+			&img.UploadDate,
+			&img.DisplayOrder,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		imageMap[img.VehicleID] = append(imageMap[img.VehicleID], img)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return imageMap, nil
+}
 func (s *VehicleRepository) GetAllVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) (int64, error) {
 	var count int64
 	query := `SELECT COUNT(*)

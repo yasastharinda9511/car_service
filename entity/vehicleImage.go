@@ -4,7 +4,7 @@ import "time"
 
 type VehicleImage struct {
 	ID           int       `json:"id"`
-	VehicleID    int       `json:"vehicle_id"`
+	VehicleID    int64     `json:"vehicle_id"`
 	Filename     string    `json:"filename"`
 	OriginalName string    `json:"original_name"`
 	FilePath     string    `json:"file_path"`
