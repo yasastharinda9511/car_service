@@ -95,7 +95,7 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 			v.updated_at`
 
 	// Conditionally add shipping details
-	if util.HasPermission(userPermissions, constants.VEHICLE_ACCESS) {
+	if util.HasPermission(userPermissions, constants.SHIIPING_ACCESS) {
 		query += `,
 			COALESCE(vs.id, 0) AS vs_id,
 			COALESCE(vs.vehicle_id, 0) AS vs_vehicle_id,
@@ -192,7 +192,7 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 	}
 
 	// Add shipping fields if permitted
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.SHIIPING_ACCESS) {
 		scanArgs = append(scanArgs,
 			&vc.VehicleShipping.ID, &vc.VehicleShipping.VehicleID,
 			&vc.VehicleShipping.VesselName, &vc.VehicleShipping.DepartureHarbour,
@@ -202,7 +202,7 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 	}
 
 	// Add financial fields if permitted
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.FINANCIAL_ACCESS) {
 		scanArgs = append(scanArgs,
 			&vc.VehicleFinancials.ID, &vc.VehicleFinancials.VehicleID,
 			&vc.VehicleFinancials.TotalCostLKR, &vc.VehicleFinancials.ChargesLKR,
@@ -212,7 +212,7 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 	}
 
 	// Add sales fields if permitted
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.SALES_ACCESS) {
 		scanArgs = append(scanArgs,
 			&vc.VehicleSales.ID, &vc.VehicleSales.VehicleID,
 			&vc.VehicleSales.SoldDate, &vc.VehicleSales.Revenue,
@@ -223,7 +223,7 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 	}
 
 	// Add purchase fields if permitted
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.PURCHASE_ACCESS) {
 		scanArgs = append(scanArgs,
 			&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID,
 			&vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
