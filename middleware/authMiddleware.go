@@ -16,7 +16,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-const permissionsKey = "user"
+const permissionsKey = "permissions"
 
 type AuthMiddleware struct {
 	client             *http.Client
@@ -67,7 +67,7 @@ func (authMiddleware *AuthMiddleware) Authorize(next http.Handler, permission st
 		}
 
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, permissionsKey, claims)
+		ctx = context.WithValue(ctx, permissionsKey, claims.Permissions)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

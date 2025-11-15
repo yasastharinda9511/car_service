@@ -5,7 +5,10 @@ import (
 	"car_service/dto/request"
 	"car_service/entity"
 	"car_service/filters"
+	"car_service/util"
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -17,6 +20,61 @@ func NewVehicleRepository() *VehicleRepository {
 }
 
 func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Executor, limit, offset int, filter filters.Filter) ([]entity.VehicleComplete, error) {
+
+	permissions, ok := ctx.Value("permissions").([]string)
+	if !ok {
+		return nil, errors.New("permissions not found in context")
+	}
+
+	query := s.buildVehicleQuery(permissions)
+
+	query, args := filter.GetQuery(query, "", "", limit, offset)
+	rows, err := exec.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	vehicles := make([]entity.VehicleComplete, 0)
+	vehicleIDs := make([]int64, 0)
+
+	for rows.Next() {
+		vc, err := s.scanVehicle(rows, permissions)
+		if err != nil {
+			return nil, err
+		}
+
+		vc.VehicleImages = []entity.VehicleImage{}
+		vehicles = append(vehicles, vc)
+		vehicleIDs = append(vehicleIDs, vc.Vehicle.ID)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(vehicleIDs) == 0 {
+		return vehicles, nil
+	}
+
+	// Fetch images
+	images, err := s.getImagesByVehicleIDs(ctx, exec, vehicleIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range vehicles {
+		vehicleID := vehicles[i].Vehicle.ID
+		if imgs, ok := images[vehicleID]; ok {
+			vehicles[i].VehicleImages = imgs
+		}
+	}
+
+	return vehicles, nil
+}
+
+// Build query based on permissions
+func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 	query := `
 		SELECT 
 			v.id,
@@ -33,8 +91,11 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 			v.cif_value,
 			v.currency,
 			v.created_at,
-			v.updated_at,
+			v.updated_at`
 
+	// Conditionally add shipping details
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		query += `,
 			COALESCE(vs.id, 0) AS vs_id,
 			COALESCE(vs.vehicle_id, 0) AS vs_vehicle_id,
 			COALESCE(vs.vessel_name, '') AS vessel_name,
@@ -42,16 +103,24 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 			COALESCE(vs.shipment_date, '1970-01-01') AS shipment_date,
 			COALESCE(vs.arrival_date, '1970-01-01') AS arrival_date,
 			COALESCE(vs.clearing_date, '1970-01-01') AS clearing_date,
-			COALESCE(vs.shipping_status, 'PROCESSING') AS shipping_status,
+			COALESCE(vs.shipping_status, 'PROCESSING') AS shipping_status`
+	}
 
+	// Conditionally add financial details
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		query += `,
 			COALESCE(vf.id, 0) AS vf_id,
 			COALESCE(vf.vehicle_id, 0) AS vf_vehicle_id,
 			COALESCE(vf.total_cost_lkr, 0) AS total_cost_lkr,
 			COALESCE(vf.charges_lkr, 0) AS charges_lkr,
 			COALESCE(vf.duty_lkr, 0) AS duty_lkr,
 			COALESCE(vf.clearing_lkr, 0) AS clearing_lkr,
-			COALESCE(vf.other_expenses_lkr, 0) AS other_expenses_lkr,
+			COALESCE(vf.other_expenses_lkr, 0) AS other_expenses_lkr`
+	}
 
+	// Conditionally add sales details
+	if util.HasPermission(userPermissions, "vehicle1.access") {
+		query += `,
 			COALESCE(vsl.id, 0) AS vsl_id,
 			COALESCE(vsl.vehicle_id, 0) AS vsl_vehicle_id,
 			COALESCE(vsl.sold_date, '1970-01-01') AS sold_date,
@@ -61,8 +130,12 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 			COALESCE(vsl.sold_to_title, '') AS sold_to_title,
 			COALESCE(vsl.contact_number, '') AS contact_number,
 			COALESCE(vsl.customer_address, '') AS customer_address,
-			COALESCE(vsl.sale_status, 'AVAILABLE') AS sale_status,
+			COALESCE(vsl.sale_status, 'AVAILABLE') AS sale_status`
+	}
 
+	// Conditionally add purchase details
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		query += `,
 			COALESCE(vp.id, 0) AS vp_id,
 			COALESCE(vp.vehicle_id, 0) AS vp_vehicle_id,
 			COALESCE(vp.bought_from_name, '') AS bought_from_name,
@@ -74,80 +147,94 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 			COALESCE(vp.lc_bank, '') AS lc_bank,
 			COALESCE(vp.lc_number, '') AS lc_number,
 			COALESCE(vp.lc_cost_jpy, 0) AS lc_cost_jpy,
-			COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date
-
-		FROM cars.vehicles v
-		LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id
-		LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
-		LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
-		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id
-	`
-
-	query, args := filter.GetQuery(query, "", "", limit, offset)
-	rows, err := exec.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
+			COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date`
 	}
-	defer rows.Close()
 
-	vehicles := make([]entity.VehicleComplete, 0)
-	vehicleIDs := make([]int64, 0)
+	query += `
+		FROM cars.vehicles v`
 
-	for rows.Next() {
-		var vc entity.VehicleComplete
+	// Conditionally add JOINs
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		query += `
+		LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id`
+	}
 
-		err := rows.Scan(
-			&vc.Vehicle.ID, &vc.Vehicle.Code, &vc.Vehicle.Make, &vc.Vehicle.Model, &vc.Vehicle.TrimLevel, &vc.Vehicle.YearOfManufacture,
-			&vc.Vehicle.Color, &vc.Vehicle.MileageKm, &vc.Vehicle.ChassisID, &vc.Vehicle.ConditionStatus, &vc.Vehicle.AuctionGrade,
-			&vc.Vehicle.CIFValue, &vc.Vehicle.Currency, &vc.Vehicle.CreatedAt, &vc.Vehicle.UpdatedAt,
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		query += `
+		LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id`
+	}
 
-			&vc.VehicleShipping.ID, &vc.VehicleShipping.VehicleID, &vc.VehicleShipping.VesselName, &vc.VehicleShipping.DepartureHarbour, &vc.VehicleShipping.ShipmentDate, &vc.VehicleShipping.ArrivalDate,
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		query += `
+		LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id`
+	}
+
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		query += `
+		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id`
+	}
+
+	return query
+}
+
+// Scan vehicle based on permissions
+func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string) (entity.VehicleComplete, error) {
+	var vc entity.VehicleComplete
+
+	// Create slice for scanning - start with base vehicle fields
+	scanArgs := []interface{}{
+		&vc.Vehicle.ID, &vc.Vehicle.Code, &vc.Vehicle.Make, &vc.Vehicle.Model,
+		&vc.Vehicle.TrimLevel, &vc.Vehicle.YearOfManufacture,
+		&vc.Vehicle.Color, &vc.Vehicle.MileageKm, &vc.Vehicle.ChassisID,
+		&vc.Vehicle.ConditionStatus, &vc.Vehicle.AuctionGrade,
+		&vc.Vehicle.CIFValue, &vc.Vehicle.Currency, &vc.Vehicle.CreatedAt, &vc.Vehicle.UpdatedAt,
+	}
+
+	// Add shipping fields if permitted
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		scanArgs = append(scanArgs,
+			&vc.VehicleShipping.ID, &vc.VehicleShipping.VehicleID,
+			&vc.VehicleShipping.VesselName, &vc.VehicleShipping.DepartureHarbour,
+			&vc.VehicleShipping.ShipmentDate, &vc.VehicleShipping.ArrivalDate,
 			&vc.VehicleShipping.ClearingDate, &vc.VehicleShipping.ShippingStatus,
-
-			&vc.VehicleFinancials.ID, &vc.VehicleFinancials.VehicleID, &vc.VehicleFinancials.TotalCostLKR, &vc.VehicleFinancials.ChargesLKR, &vc.VehicleFinancials.DutyLKR, &vc.VehicleFinancials.ClearingLKR, &vc.VehicleFinancials.OtherExpensesLKR,
-
-			&vc.VehicleSales.ID, &vc.VehicleSales.VehicleID, &vc.VehicleSales.SoldDate, &vc.VehicleSales.Revenue, &vc.VehicleSales.Profit, &vc.VehicleSales.SoldToName, &vc.VehicleSales.SoldToTitle,
-			&vc.VehicleSales.ContactNumber, &vc.VehicleSales.CustomerAddress, &vc.VehicleSales.SaleStatus,
-
-			&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID, &vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
-			&vc.VehiclePurchase.BoughtFromContact, &vc.VehiclePurchase.BoughtFromAddress, &vc.VehiclePurchase.BoughtFromOtherContacts,
-			&vc.VehiclePurchase.PurchaseRemarks, &vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber, &vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
 		)
-		if err != nil {
-			return nil, err
-		}
-
-		// Initialize empty images slice
-		vc.VehicleImages = []entity.VehicleImage{}
-
-		vehicles = append(vehicles, vc)
-		vehicleIDs = append(vehicleIDs, vc.Vehicle.ID)
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, err
+	// Add financial fields if permitted
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		scanArgs = append(scanArgs,
+			&vc.VehicleFinancials.ID, &vc.VehicleFinancials.VehicleID,
+			&vc.VehicleFinancials.TotalCostLKR, &vc.VehicleFinancials.ChargesLKR,
+			&vc.VehicleFinancials.DutyLKR, &vc.VehicleFinancials.ClearingLKR,
+			&vc.VehicleFinancials.OtherExpensesLKR,
+		)
 	}
 
-	// If no vehicles found, return empty slice
-	if len(vehicleIDs) == 0 {
-		return vehicles, nil
+	// Add sales fields if permitted
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		scanArgs = append(scanArgs,
+			&vc.VehicleSales.ID, &vc.VehicleSales.VehicleID,
+			&vc.VehicleSales.SoldDate, &vc.VehicleSales.Revenue,
+			&vc.VehicleSales.Profit, &vc.VehicleSales.SoldToName,
+			&vc.VehicleSales.SoldToTitle, &vc.VehicleSales.ContactNumber,
+			&vc.VehicleSales.CustomerAddress, &vc.VehicleSales.SaleStatus,
+		)
 	}
 
-	// Now fetch all images for these vehicles in a single query
-	images, err := s.getImagesByVehicleIDs(ctx, exec, vehicleIDs)
-	if err != nil {
-		return nil, err
+	// Add purchase fields if permitted
+	if util.HasPermission(userPermissions, "vehicle.access") {
+		scanArgs = append(scanArgs,
+			&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID,
+			&vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
+			&vc.VehiclePurchase.BoughtFromContact, &vc.VehiclePurchase.BoughtFromAddress,
+			&vc.VehiclePurchase.BoughtFromOtherContacts, &vc.VehiclePurchase.PurchaseRemarks,
+			&vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber,
+			&vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
+		)
 	}
 
-	// Map images to their respective vehicles
-	for i := range vehicles {
-		vehicleID := vehicles[i].Vehicle.ID
-		if imgs, ok := images[vehicleID]; ok {
-			vehicles[i].VehicleImages = imgs
-		}
-	}
-
-	return vehicles, nil
+	err := rows.Scan(scanArgs...)
+	return vc, err
 }
 
 // Helper method to fetch images for multiple vehicles
