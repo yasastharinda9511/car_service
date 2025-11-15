@@ -3,6 +3,7 @@ package controllers
 import (
 	"car_service/dto/request"
 	"car_service/filters"
+	"car_service/internal/constants"
 	"car_service/middleware"
 	"car_service/services"
 	"net/http"
@@ -54,17 +55,17 @@ func (vc *VehicleController) SetupRoutes() {
 	// Vehicle routes
 	vehicles := api.PathPrefix("/vehicles").Subrouter()
 
-	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicles), "vehicles.access")).Methods("GET")
-	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicle), "vehicles.access")).Methods("GET")
-	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.createVehicle), "vehicles.create")).Methods("POST")
-	vehicles.Handle("/download-image/{filename}", authMiddleware.Authorize(http.HandlerFunc(vc.serveImageHandler), "vehicles.create")).Methods("GET")
-	vehicles.Handle("/upload-image/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadImageHandler), "vehicles.create")).Methods("POST")
+	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicles), constants.VEHICLE_ACCESS)).Methods("GET")
+	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicle), constants.VEHICLE_ACCESS)).Methods("GET")
+	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.createVehicle), constants.VEHICLE_CREATE)).Methods("POST")
+	vehicles.Handle("/download-image/{filename}", authMiddleware.Authorize(http.HandlerFunc(vc.serveImageHandler), constants.VEHICLE_ACCESS)).Methods("GET")
+	vehicles.Handle("/upload-image/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadImageHandler), constants.VEHICLE_CREATE)).Methods("POST")
 
-	vehicles.Handle("/{id}/shipping", authMiddleware.Authorize(http.HandlerFunc(vc.updateShipping), "shipping.edit")).Methods("PUT")
-	vehicles.Handle("/{id}/purchase", authMiddleware.Authorize(http.HandlerFunc(vc.updatePurchase), "purchase.edit")).Methods("PUT")
-	vehicles.Handle("/{id}/financials", authMiddleware.Authorize(http.HandlerFunc(vc.updateFinancials), "financial.edit")).Methods("PUT")
-	vehicles.Handle("/{id}/sales", authMiddleware.Authorize(http.HandlerFunc(vc.updateSales), "sales.edit")).Methods("PUT")
-	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.updateVehicle), "vehicles.edit")).Methods("PUT")
+	vehicles.Handle("/{id}/shipping", authMiddleware.Authorize(http.HandlerFunc(vc.updateShipping), constants.SHIPPING_EDIT)).Methods("PUT")
+	vehicles.Handle("/{id}/purchase", authMiddleware.Authorize(http.HandlerFunc(vc.updatePurchase), constants.PURCHASE_EDIT)).Methods("PUT")
+	vehicles.Handle("/{id}/financials", authMiddleware.Authorize(http.HandlerFunc(vc.updateFinancials), constants.FINANCIAL_EDIT)).Methods("PUT")
+	vehicles.Handle("/{id}/sales", authMiddleware.Authorize(http.HandlerFunc(vc.updateSales), constants.SALES_EDIT)).Methods("PUT")
+	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.updateVehicle), constants.VEHICLE_EDIT)).Methods("PUT")
 
 	// Dropdown data route
 	vehicles.HandleFunc("/dropdown/options", vc.getDropdownOptions).Methods("GET")
