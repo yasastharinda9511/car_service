@@ -5,6 +5,7 @@ import (
 	"car_service/dto/request"
 	"car_service/entity"
 	"car_service/filters"
+	"car_service/internal/constants"
 	"car_service/util"
 	"context"
 	"database/sql"
@@ -94,7 +95,7 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 			v.updated_at`
 
 	// Conditionally add shipping details
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.VEHICLE_ACCESS) {
 		query += `,
 			COALESCE(vs.id, 0) AS vs_id,
 			COALESCE(vs.vehicle_id, 0) AS vs_vehicle_id,
@@ -107,7 +108,7 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 	}
 
 	// Conditionally add financial details
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.FINANCIAL_ACCESS) {
 		query += `,
 			COALESCE(vf.id, 0) AS vf_id,
 			COALESCE(vf.vehicle_id, 0) AS vf_vehicle_id,
@@ -119,7 +120,7 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 	}
 
 	// Conditionally add sales details
-	if util.HasPermission(userPermissions, "vehicle1.access") {
+	if util.HasPermission(userPermissions, constants.SALES_ACCESS) {
 		query += `,
 			COALESCE(vsl.id, 0) AS vsl_id,
 			COALESCE(vsl.vehicle_id, 0) AS vsl_vehicle_id,
@@ -134,7 +135,7 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 	}
 
 	// Conditionally add purchase details
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.PURCHASE_ACCESS) {
 		query += `,
 			COALESCE(vp.id, 0) AS vp_id,
 			COALESCE(vp.vehicle_id, 0) AS vp_vehicle_id,
@@ -154,22 +155,22 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 		FROM cars.vehicles v`
 
 	// Conditionally add JOINs
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.SHIIPING_ACCESS) {
 		query += `
 		LEFT JOIN cars.vehicle_shipping vs ON v.id = vs.vehicle_id`
 	}
 
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.FINANCIAL_ACCESS) {
 		query += `
 		LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id`
 	}
 
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.SALES_ACCESS) {
 		query += `
 		LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id`
 	}
 
-	if util.HasPermission(userPermissions, "vehicle.access") {
+	if util.HasPermission(userPermissions, constants.PURCHASE_ACCESS) {
 		query += `
 		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id`
 	}
