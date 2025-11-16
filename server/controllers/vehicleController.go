@@ -75,6 +75,10 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.Handle("/{id}/customer", authMiddleware.Authorize(http.HandlerFunc(vc.removeCustomer), constants.SALES_EDIT)).Methods("DELETE")
 	vehicles.Handle("/customer/{customer_id}", authMiddleware.Authorize(http.HandlerFunc(vc.getVehiclesByCustomer), constants.VEHICLE_ACCESS)).Methods("GET")
 
+	// Shipping history routes
+	vehicles.Handle("/shipping/history/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getShippingHistory), constants.SHIIPING_ACCESS)).Methods("GET")
+	vehicles.Handle("/shipping/history/recent", authMiddleware.Authorize(http.HandlerFunc(vc.getRecentShippingHistory), constants.SHIIPING_ACCESS)).Methods("GET")
+
 }
 
 func (vc *VehicleController) getVehicles(w http.ResponseWriter, r *http.Request) {
@@ -565,6 +569,55 @@ func (vc *VehicleController) getVehiclesByCustomer(w http.ResponseWriter, r *htt
 		"meta": map[string]interface{}{
 			"customer_id": customerID,
 			"total":       len(vehicles),
+		},
+	})
+}
+
+// getShippingHistory retrieves the shipping status change history for a specific vehicle
+func (vc *VehicleController) getShippingHistory(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	vehicleID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
+		return
+	}
+
+	history, err := vc.vehicleService.GetShippingHistory(r.Context(), vehicleID)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": history,
+		"meta": map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"total":      len(history),
+		},
+	})
+}
+
+// getRecentShippingHistory retrieves recent shipping status changes across all vehicles
+func (vc *VehicleController) getRecentShippingHistory(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 50 // Default limit
+	}
+	if limit > 200 {
+		limit = 200 // Max limit
+	}
+
+	history, err := vc.vehicleService.GetRecentShippingHistory(r.Context(), limit)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": history,
+		"meta": map[string]interface{}{
+			"limit": limit,
+			"total": len(history),
 		},
 	})
 }

@@ -19,23 +19,25 @@ import (
 )
 
 type VehicleService struct {
-	db                          *sql.DB
-	vehicleRepository           *repository.VehicleRepository
-	vehicleIMageRepository      *repository.VehicleImageRepository
-	vehicleFinancialsRepository *repository.VehicleFinancialsRepository
-	vehicleShippingRepository   *repository.VehicleShippingRepository
-	vehiclePurchaseRepository   *repository.VehiclePurchaseRepository
-	vehicleSalesRepository      *repository.VehicleSalesRepository
+	db                               *sql.DB
+	vehicleRepository                *repository.VehicleRepository
+	vehicleIMageRepository           *repository.VehicleImageRepository
+	vehicleFinancialsRepository      *repository.VehicleFinancialsRepository
+	vehicleShippingRepository        *repository.VehicleShippingRepository
+	vehiclePurchaseRepository        *repository.VehiclePurchaseRepository
+	vehicleSalesRepository           *repository.VehicleSalesRepository
+	vehicleShippingHistoryRepository *repository.VehicleShippingHistoryRepository
 }
 
 func NewVehicleService(db *sql.DB) *VehicleService {
 	return &VehicleService{db: db,
-		vehicleRepository:           repository.NewVehicleRepository(),
-		vehicleIMageRepository:      repository.NewVehicleImageRepository(),
-		vehicleFinancialsRepository: repository.NewVehicleFinancialsRepository(),
-		vehiclePurchaseRepository:   repository.NewVehiclePurchaseRepository(),
-		vehicleSalesRepository:      repository.NewVehicleSalesRepository(),
-		vehicleShippingRepository:   repository.NewVehicleShippingRepository(),
+		vehicleRepository:                repository.NewVehicleRepository(),
+		vehicleIMageRepository:           repository.NewVehicleImageRepository(),
+		vehicleFinancialsRepository:      repository.NewVehicleFinancialsRepository(),
+		vehiclePurchaseRepository:        repository.NewVehiclePurchaseRepository(),
+		vehicleSalesRepository:           repository.NewVehicleSalesRepository(),
+		vehicleShippingRepository:        repository.NewVehicleShippingRepository(),
+		vehicleShippingHistoryRepository: repository.NewVehicleShippingHistoryRepository(),
 	}
 }
 
@@ -238,6 +240,16 @@ func (s *VehicleService) GetVehiclesByCustomer(ctx context.Context, customerID i
 	}
 
 	return vehicles, nil
+}
+
+// GetShippingHistory retrieves shipping status change history for a vehicle
+func (s *VehicleService) GetShippingHistory(ctx context.Context, vehicleID int64) ([]entity.VehicleShippingHistoryWithDetails, error) {
+	return s.vehicleShippingHistoryRepository.GetHistoryByVehicleID(ctx, s.db, vehicleID)
+}
+
+// GetRecentShippingHistory retrieves recent shipping changes across all vehicles
+func (s *VehicleService) GetRecentShippingHistory(ctx context.Context, limit int) ([]entity.VehicleShippingHistoryWithDetails, error) {
+	return s.vehicleShippingHistoryRepository.GetRecentHistory(ctx, s.db, limit)
 }
 
 //
