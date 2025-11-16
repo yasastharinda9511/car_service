@@ -47,11 +47,13 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	analyticController := controllers.NewAnalyticController(analyticService, server.router)
 	vehicleMakeController := controllers.NewVehicleMakeController(server.router, cfg.IntrospectURL)
 	vehicleModelController := controllers.NewVehicleModelController(server.router, cfg.IntrospectURL)
+	customerController := controllers.NewCustomerController(server.router, cfg.IntrospectURL)
 
 	vehicleController.SetupRoutes()
 	analyticController.SetupRoutes()
 	vehicleMakeController.SetupRoutes(db)
 	vehicleModelController.SetupRoutes(db)
+	customerController.SetupRoutes(db)
 
 	server.setupRoutes()
 	return server
