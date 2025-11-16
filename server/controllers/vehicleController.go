@@ -70,6 +70,11 @@ func (vc *VehicleController) SetupRoutes() {
 	// Dropdown data route
 	vehicles.HandleFunc("/dropdown/options", vc.getDropdownOptions).Methods("GET")
 
+	// Customer management routes
+	vehicles.Handle("/{id}/customer", authMiddleware.Authorize(http.HandlerFunc(vc.assignCustomer), constants.SALES_EDIT)).Methods("PUT")
+	vehicles.Handle("/{id}/customer", authMiddleware.Authorize(http.HandlerFunc(vc.removeCustomer), constants.SALES_EDIT)).Methods("DELETE")
+	vehicles.Handle("/customer/{customer_id}", authMiddleware.Authorize(http.HandlerFunc(vc.getVehiclesByCustomer), constants.VEHICLE_ACCESS)).Methods("GET")
+
 }
 
 func (vc *VehicleController) getVehicles(w http.ResponseWriter, r *http.Request) {
@@ -266,10 +271,10 @@ func (vc *VehicleController) updateSales(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// Validation: If status is SOLD, require customer details
+	// Validation: If status is SOLD, require customer and revenue
 	if req.SaleStatus == "SOLD" {
-		if req.SoldToName == nil || *req.SoldToName == "" {
-			vc.writeError(w, http.StatusBadRequest, "Customer name is required when status is SOLD")
+		if req.CustomerID == nil || *req.CustomerID <= 0 {
+			vc.writeError(w, http.StatusBadRequest, "Customer ID is required when status is SOLD")
 			return
 		}
 		if req.Revenue == nil || *req.Revenue <= 0 {
@@ -471,5 +476,95 @@ func (vc *VehicleController) getDropdownOptions(w http.ResponseWriter, r *http.R
 
 	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"data": options,
+	})
+}
+
+// assignCustomer assigns a customer to a vehicle sale
+func (vc *VehicleController) assignCustomer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	vehicleID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
+		return
+	}
+
+	var req struct {
+		CustomerID int64 `json:"customer_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if req.CustomerID <= 0 {
+		vc.writeError(w, http.StatusBadRequest, "Valid customer ID is required")
+		return
+	}
+
+	err = vc.vehicleService.AssignCustomerToVehicle(r.Context(), vehicleID, req.CustomerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			vc.writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if strings.Contains(err.Error(), "foreign key") {
+			vc.writeError(w, http.StatusBadRequest, "Invalid customer ID")
+			return
+		}
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "Customer assigned to vehicle successfully",
+	})
+}
+
+// removeCustomer removes the customer assignment from a vehicle sale
+func (vc *VehicleController) removeCustomer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	vehicleID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
+		return
+	}
+
+	err = vc.vehicleService.RemoveCustomerFromVehicle(r.Context(), vehicleID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			vc.writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "Customer removed from vehicle successfully",
+	})
+}
+
+// getVehiclesByCustomer retrieves all vehicles associated with a specific customer
+func (vc *VehicleController) getVehiclesByCustomer(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	customerID, err := strconv.ParseInt(vars["customer_id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid customer ID")
+		return
+	}
+
+	vehicles, err := vc.vehicleService.GetVehiclesByCustomer(r.Context(), customerID)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": vehicles,
+		"meta": map[string]interface{}{
+			"customer_id": customerID,
+			"total":       len(vehicles),
+		},
 	})
 }

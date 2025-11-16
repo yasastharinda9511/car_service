@@ -205,6 +205,41 @@ func (s *VehicleService) GetDropdownOptions(ctx context.Context) (*repository.Dr
 	return s.vehicleRepository.GetDropdownOptions(ctx, s.db)
 }
 
+// AssignCustomerToVehicle assigns a customer to a vehicle sale
+func (s *VehicleService) AssignCustomerToVehicle(ctx context.Context, vehicleID int64, customerID int64) error {
+	return s.vehicleSalesRepository.AssignCustomer(ctx, s.db, vehicleID, customerID)
+}
+
+// RemoveCustomerFromVehicle removes the customer assignment from a vehicle sale
+func (s *VehicleService) RemoveCustomerFromVehicle(ctx context.Context, vehicleID int64) error {
+	return s.vehicleSalesRepository.RemoveCustomer(ctx, s.db, vehicleID)
+}
+
+// GetVehiclesByCustomer retrieves all vehicles associated with a specific customer
+func (s *VehicleService) GetVehiclesByCustomer(ctx context.Context, customerID int64) ([]entity.VehicleComplete, error) {
+	// Get vehicle IDs for this customer
+	vehicleIDs, err := s.vehicleSalesRepository.GetVehiclesByCustomerID(ctx, s.db, customerID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(vehicleIDs) == 0 {
+		return []entity.VehicleComplete{}, nil
+	}
+
+	// Fetch complete vehicle information for each ID
+	var vehicles []entity.VehicleComplete
+	for _, vehicleID := range vehicleIDs {
+		vehicle, err := s.GetVehicleByID(ctx, vehicleID)
+		if err != nil {
+			return nil, err
+		}
+		vehicles = append(vehicles, *vehicle)
+	}
+
+	return vehicles, nil
+}
+
 //
 //func (s *VehicleService) CreateVehicleMake(vehicleMake request.CreateVehicleMake) (*entity.VehicleMake, error) {
 //	query := `

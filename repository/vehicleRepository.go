@@ -124,13 +124,11 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 		query += `,
 			COALESCE(vsl.id, 0) AS vsl_id,
 			COALESCE(vsl.vehicle_id, 0) AS vsl_vehicle_id,
+			COALESCE(vsl.customer_id, 0) AS customer_id,
 			COALESCE(vsl.sold_date, '1970-01-01') AS sold_date,
 			COALESCE(vsl.revenue, 0) AS revenue,
 			COALESCE(vsl.profit, 0) AS profit,
-			COALESCE(vsl.sold_to_name, '') AS sold_to_name,
-			COALESCE(vsl.sold_to_title, '') AS sold_to_title,
-			COALESCE(vsl.contact_number, '') AS contact_number,
-			COALESCE(vsl.customer_address, '') AS customer_address,
+			COALESCE(vsl.sale_remarks, '') AS sale_remarks,
 			COALESCE(vsl.sale_status, 'AVAILABLE') AS sale_status`
 	}
 
@@ -215,10 +213,9 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 	if util.HasPermission(userPermissions, constants.SALES_ACCESS) {
 		scanArgs = append(scanArgs,
 			&vc.VehicleSales.ID, &vc.VehicleSales.VehicleID,
-			&vc.VehicleSales.SoldDate, &vc.VehicleSales.Revenue,
-			&vc.VehicleSales.Profit, &vc.VehicleSales.SoldToName,
-			&vc.VehicleSales.SoldToTitle, &vc.VehicleSales.ContactNumber,
-			&vc.VehicleSales.CustomerAddress, &vc.VehicleSales.SaleStatus,
+			&vc.VehicleSales.CustomerID, &vc.VehicleSales.SoldDate,
+			&vc.VehicleSales.Revenue, &vc.VehicleSales.Profit,
+			&vc.VehicleSales.SaleRemarks, &vc.VehicleSales.SaleStatus,
 		)
 	}
 
