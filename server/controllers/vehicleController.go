@@ -79,6 +79,10 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.Handle("/shipping/history/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getShippingHistory), constants.SHIIPING_ACCESS)).Methods("GET")
 	vehicles.Handle("/shipping/history/recent", authMiddleware.Authorize(http.HandlerFunc(vc.getRecentShippingHistory), constants.SHIIPING_ACCESS)).Methods("GET")
 
+	// Document management routes
+	vehicles.Handle("/upload-document/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadDocumentHandler), constants.VEHICLE_CREATE)).Methods("POST")
+	vehicles.Handle("/download-document/{document_id}", authMiddleware.Authorize(http.HandlerFunc(vc.serveDocumentHandler), constants.VEHICLE_ACCESS)).Methods("GET")
+
 }
 
 func (vc *VehicleController) getVehicles(w http.ResponseWriter, r *http.Request) {
@@ -471,6 +475,160 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 		// Redirect to the presigned URL
 		vc.writeJSON(w, http.StatusOK, map[string]interface{}{
 			"data": presignedURL,
+		})
+	}
+}
+
+func (vc *VehicleController) uploadDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	err := r.ParseMultipartForm(50 << 20) // 50MB limit for documents
+
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
+		return
+	}
+
+	if err != nil {
+		http.Error(w, "Unable to parse form", http.StatusBadRequest)
+		return
+	}
+
+	files := r.MultipartForm.File["documents"]
+	if len(files) == 0 {
+		http.Error(w, "No documents provided", http.StatusBadRequest)
+		return
+	}
+
+	// Get document_type from form data
+	documentTypes := r.MultipartForm.Value["document_type"]
+	documentNames := r.MultipartForm.Value["document_name"]
+
+	var uploadedDocuments []entity.VehicleDocument
+	var errors []string
+
+	for i, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("Unable to open file %s: %v", fileHeader.Filename, err))
+			continue
+		}
+
+		contentType := fileHeader.Header.Get("Content-Type")
+		if !util.IsValidDocumentType(contentType) {
+			file.Close()
+			errors = append(errors, fmt.Sprintf("Invalid file type for %s. Only PDF, images, and Office documents allowed", fileHeader.Filename))
+			continue
+		}
+
+		// Get document type for this file (default to OTHER if not provided)
+		var docType entity.DocumentType = entity.DocumentTypeOther
+		if i < len(documentTypes) && documentTypes[i] != "" {
+			docType = entity.DocumentType(documentTypes[i])
+		}
+
+		// Get document name for this file (default to filename if not provided)
+		docName := fileHeader.Filename
+		if i < len(documentNames) && documentNames[i] != "" {
+			docName = documentNames[i]
+		}
+
+		var vehicleDocument entity.VehicleDocument
+		vehicleDocument.VehicleID = int64(id)
+		vehicleDocument.DocumentType = docType
+		vehicleDocument.DocumentName = docName
+		vehicleDocument.FileSizeBytes = fileHeader.Size
+		vehicleDocument.MimeType = contentType
+		vehicleDocument.UploadDate = time.Now()
+
+		pathPrefix := fmt.Sprintf("vehicles/%d/documents", id)
+
+		if vc.s3Service != nil {
+			result, err := vc.s3Service.UploadFile(r.Context(), file, fileHeader, pathPrefix)
+			file.Close()
+
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("Failed to upload %s to S3: %v", fileHeader.Filename, err))
+				continue
+			}
+
+			vehicleDocument.FilePath = result.Key // Store S3 key in file_path
+		}
+
+		uploadedDocuments = append(uploadedDocuments, vehicleDocument)
+	}
+
+	documents, err := vc.vehicleService.InsertVehicleDocument(r.Context(), uploadedDocuments)
+
+	// Prepare response
+	response := map[string]interface{}{
+		"uploaded_documents": documents,
+		"total_uploaded":     len(documents),
+		"total_files":        len(files),
+		"storage_type":       "s3",
+	}
+
+	if len(errors) > 0 {
+		response["errors"] = errors
+		response["partial_success"] = true
+	}
+
+	// Return appropriate status code
+	if len(uploadedDocuments) == 0 {
+		// All uploads failed
+		vc.writeJSON(w, http.StatusBadRequest, response)
+	} else if len(errors) > 0 {
+		// Partial success
+		vc.writeJSON(w, http.StatusMultiStatus, response)
+	} else {
+		// Complete success
+		vc.writeJSON(w, http.StatusCreated, response)
+	}
+}
+
+func (vc *VehicleController) serveDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	documentID, err := strconv.ParseInt(vars["document_id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid document ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get document metadata from database
+	document, err := vc.vehicleService.GetVehicleDocumentByID(r.Context(), documentID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Document not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to retrieve document", http.StatusInternalServerError)
+		return
+	}
+
+	if vc.s3Service != nil {
+		// Check if file exists in S3
+		exists, err := vc.s3Service.CheckIfFileExists(r.Context(), document.FilePath)
+		if err != nil || !exists {
+			http.Error(w, "Document not found in storage", http.StatusNotFound)
+			return
+		}
+
+		// Generate presigned URL (valid for 15 minutes)
+		presignedURL, err := vc.s3Service.GetPresignedURL(r.Context(), document.FilePath, 15)
+		if err != nil {
+			http.Error(w, "Failed to generate document URL", http.StatusInternalServerError)
+			return
+		}
+
+		// Return the presigned URL along with document metadata
+		vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+			"data": presignedURL,
+			"metadata": map[string]interface{}{
+				"document_name": document.DocumentName,
+				"document_type": document.DocumentType,
+				"mime_type":     document.MimeType,
+				"file_size":     document.FileSizeBytes,
+			},
 		})
 	}
 }

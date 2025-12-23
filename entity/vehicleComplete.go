@@ -7,4 +7,5 @@ type VehicleComplete struct {
 	VehicleFinancials VehicleFinancials `json:"vehicle_financials"`
 	VehicleSales      VehicleSales      `json:"vehicle_sales"`
 	VehicleImages     []VehicleImage    `json:"vehicle_image"`
+	VehicleDocuments  []VehicleDocument `json:"vehicle_documents"`
 }

@@ -46,6 +46,7 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 		}
 
 		vc.VehicleImages = []entity.VehicleImage{}
+		vc.VehicleDocuments = []entity.VehicleDocument{}
 		vehicles = append(vehicles, vc)
 		vehicleIDs = append(vehicleIDs, vc.Vehicle.ID)
 	}
@@ -64,10 +65,19 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 		return nil, err
 	}
 
+	// Fetch documents
+	documents, err := s.getDocumentsByVehicleIDs(ctx, exec, vehicleIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	for i := range vehicles {
 		vehicleID := vehicles[i].Vehicle.ID
 		if imgs, ok := images[vehicleID]; ok {
 			vehicles[i].VehicleImages = imgs
+		}
+		if docs, ok := documents[vehicleID]; ok {
+			vehicles[i].VehicleDocuments = docs
 		}
 	}
 
@@ -302,6 +312,70 @@ func (s *VehicleRepository) getImagesByVehicleIDs(ctx context.Context, exec data
 
 	return imageMap, nil
 }
+
+func (s *VehicleRepository) getDocumentsByVehicleIDs(ctx context.Context, exec database.Executor, vehicleIDs []int64) (map[int64][]entity.VehicleDocument, error) {
+	if len(vehicleIDs) == 0 {
+		return make(map[int64][]entity.VehicleDocument), nil
+	}
+
+	// Build the IN clause with placeholders
+	placeholders := make([]string, len(vehicleIDs))
+	args := make([]interface{}, len(vehicleIDs))
+	for i, id := range vehicleIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			id,
+			vehicle_id,
+			document_type,
+			document_name,
+			file_path,
+			file_size_bytes,
+			mime_type,
+			upload_date
+		FROM cars.vehicle_documents
+		WHERE vehicle_id IN (%s)
+		ORDER BY vehicle_id, upload_date DESC
+	`, strings.Join(placeholders, ","))
+
+	rows, err := exec.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Map to group documents by vehicle_id
+	documentMap := make(map[int64][]entity.VehicleDocument)
+
+	for rows.Next() {
+		var doc entity.VehicleDocument
+		err := rows.Scan(
+			&doc.ID,
+			&doc.VehicleID,
+			&doc.DocumentType,
+			&doc.DocumentName,
+			&doc.FilePath,
+			&doc.FileSizeBytes,
+			&doc.MimeType,
+			&doc.UploadDate,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		documentMap[doc.VehicleID] = append(documentMap[doc.VehicleID], doc)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return documentMap, nil
+}
+
 func (s *VehicleRepository) GetAllVehicleCount(ctx context.Context, exec database.Executor, filter filters.Filter) (int64, error) {
 	var count int64
 	query := `SELECT COUNT(*)

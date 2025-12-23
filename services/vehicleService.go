@@ -22,6 +22,7 @@ type VehicleService struct {
 	db                               *sql.DB
 	vehicleRepository                *repository.VehicleRepository
 	vehicleIMageRepository           *repository.VehicleImageRepository
+	vehicleDocumentRepository        *repository.VehicleDocumentRepository
 	vehicleFinancialsRepository      *repository.VehicleFinancialsRepository
 	vehicleShippingRepository        *repository.VehicleShippingRepository
 	vehiclePurchaseRepository        *repository.VehiclePurchaseRepository
@@ -33,6 +34,7 @@ func NewVehicleService(db *sql.DB) *VehicleService {
 	return &VehicleService{db: db,
 		vehicleRepository:                repository.NewVehicleRepository(),
 		vehicleIMageRepository:           repository.NewVehicleImageRepository(),
+		vehicleDocumentRepository:        repository.NewVehicleDocumentRepository(),
 		vehicleFinancialsRepository:      repository.NewVehicleFinancialsRepository(),
 		vehiclePurchaseRepository:        repository.NewVehiclePurchaseRepository(),
 		vehicleSalesRepository:           repository.NewVehicleSalesRepository(),
@@ -96,6 +98,15 @@ func (s *VehicleService) GetVehicleByID(ctx context.Context, id int64) (*entity.
 	}
 
 	images, err := s.vehicleIMageRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	documents, err := s.vehicleDocumentRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	var vehicleComplete entity.VehicleComplete
 
 	vehicleComplete.Vehicle = *vehicle
@@ -104,6 +115,7 @@ func (s *VehicleService) GetVehicleByID(ctx context.Context, id int64) (*entity.
 	vehicleComplete.VehicleFinancials = *finance
 	vehicleComplete.VehicleSales = *sales
 	vehicleComplete.VehicleImages = images
+	vehicleComplete.VehicleDocuments = documents
 
 	return &vehicleComplete, nil
 }
@@ -250,6 +262,24 @@ func (s *VehicleService) GetShippingHistory(ctx context.Context, vehicleID int64
 // GetRecentShippingHistory retrieves recent shipping changes across all vehicles
 func (s *VehicleService) GetRecentShippingHistory(ctx context.Context, limit int) ([]entity.VehicleShippingHistoryWithDetails, error) {
 	return s.vehicleShippingHistoryRepository.GetRecentHistory(ctx, s.db, limit)
+}
+
+// InsertVehicleDocument inserts vehicle documents into the database
+func (s *VehicleService) InsertVehicleDocument(ctx context.Context, documents []entity.VehicleDocument) ([]entity.VehicleDocument, error) {
+	var vehicleDocuments []entity.VehicleDocument
+	for _, doc := range documents {
+		document, err := s.vehicleDocumentRepository.InsertVehicleDocument(ctx, s.db, &doc)
+		if err != nil {
+			return nil, err
+		}
+		vehicleDocuments = append(vehicleDocuments, *document)
+	}
+	return vehicleDocuments, nil
+}
+
+// GetVehicleDocumentByID retrieves a single document by ID
+func (s *VehicleService) GetVehicleDocumentByID(ctx context.Context, id int64) (*entity.VehicleDocument, error) {
+	return s.vehicleDocumentRepository.GetByID(ctx, s.db, id)
 }
 
 //
