@@ -10,6 +10,7 @@ const (
 	DocumentTypeCustoms      DocumentType = "CUSTOMS"
 	DocumentTypeInspection   DocumentType = "INSPECTION"
 	DocumentTypeRegistration DocumentType = "REGISTRATION"
+	DocumentTypeLC           DocumentType = "LC_DOCUMENT"
 	DocumentTypeOther        DocumentType = "OTHER"
 )
 

@@ -4,7 +4,7 @@ import "time"
 
 type Vehicle struct {
 	ID                 int64      `json:"id" database:"id"`
-	Code               int        `json:"code" database:"code"`
+	Code               string     `json:"code" database:"code"`
 	Make               string     `json:"make" database:"make"`
 	Model              string     `json:"model" database:"model"`
 	TrimLevel          *string    `json:"trim_level" database:"trim_level"`

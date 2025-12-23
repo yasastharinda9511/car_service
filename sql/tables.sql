@@ -39,7 +39,7 @@ CREATE TYPE cars.audit_action_enum AS ENUM ('INSERT', 'UPDATE', 'DELETE');
 -- Vehicles Master Table
 CREATE TABLE cars.vehicles (
                           id BIGSERIAL PRIMARY KEY,
-                          code INTEGER UNIQUE NOT NULL,
+                          code VARCHAR(50) UNIQUE NOT NULL,
                           make VARCHAR(50) NOT NULL,
                           model VARCHAR(100) NOT NULL,
                           trim_level VARCHAR(100),

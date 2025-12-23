@@ -1,7 +1,7 @@
 package request
 
 type CreateVehicleRequest struct {
-	Code              int      `json:"code" binding:"required"`
+	Code              string   `json:"code" binding:"required"`
 	Make              string   `json:"make" binding:"required"`
 	Model             string   `json:"model" binding:"required"`
 	TrimLevel         *string  `json:"trim_level"`
