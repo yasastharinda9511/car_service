@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -18,12 +17,6 @@ func NewCorsConfig(allowedOrigins []string) *CorsConfig {
 func (c *CorsConfig) WithCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-
-		fmt.Println("called is for origin: ", origin)
-
-		for _, allowedOrigin := range c.AllowedOrigins {
-			fmt.Println(allowedOrigin)
-		}
 		// Check if origin is allowed
 		if c.isOriginAllowed(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)

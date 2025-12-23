@@ -32,7 +32,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	var s3Service *services.S3Service
 	if cfg.UseS3Storage {
 		var err error
-		s3Service, err = services.NewS3Service(cfg.S3BucketName, cfg.S3Region)
+		s3Service, err = services.NewS3Service(cfg.Region, cfg.AccessKey, cfg.SecretKey, cfg.BucketName)
 		if err != nil {
 			log.Printf("Warning: Failed to initialize S3 service: %v. Falling back to local storage.", err)
 			cfg.UseS3Storage = false

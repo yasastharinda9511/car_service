@@ -4,6 +4,8 @@
 -- Date: 2025-01-16
 -- =====================================================
 
+DROP VIEW IF EXISTS cars.vehicle_complete_info;
+
 -- Add customer_id column to vehicle_sales table
 ALTER TABLE cars.vehicle_sales
     ADD COLUMN IF NOT EXISTS customer_id BIGINT;
