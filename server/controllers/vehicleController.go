@@ -58,7 +58,7 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicles), constants.VEHICLE_ACCESS)).Methods("GET")
 	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getVehicle), constants.VEHICLE_ACCESS)).Methods("GET")
 	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.createVehicle), constants.VEHICLE_CREATE)).Methods("POST")
-	vehicles.Handle("/download-image/{filename}", authMiddleware.Authorize(http.HandlerFunc(vc.serveImageHandler), constants.VEHICLE_ACCESS)).Methods("GET")
+	vehicles.Handle("/download-image/{id}/{filename}", authMiddleware.Authorize(http.HandlerFunc(vc.serveImageHandler), constants.VEHICLE_ACCESS)).Methods("GET")
 	vehicles.Handle("/upload-image/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadImageHandler), constants.VEHICLE_CREATE)).Methods("POST")
 
 	vehicles.Handle("/{id}/shipping", authMiddleware.Authorize(http.HandlerFunc(vc.updateShipping), constants.SHIPPING_EDIT)).Methods("PUT")
@@ -389,8 +389,10 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 		vehicleImage.IsPrimary = i == 0
 		vehicleImage.UploadDate = time.Now()
 
+		pathPrefix := fmt.Sprintf("vehicles/%d/images", id)
+
 		if vc.s3Service != nil {
-			result, err := vc.s3Service.UploadFile(r.Context(), file, fileHeader, "vehicles/images")
+			result, err := vc.s3Service.UploadFile(r.Context(), file, fileHeader, pathPrefix)
 			file.Close()
 
 			if err != nil {
@@ -436,6 +438,7 @@ func (vc *VehicleController) uploadImageHandler(w http.ResponseWriter, r *http.R
 func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	filename := vars["filename"]
+	id := vars["id"]
 
 	// Security: validate filename to prevent directory traversal
 	if strings.Contains(filename, "..") {
@@ -447,7 +450,9 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 		// For S3, generate a presigned URL and redirect
 		// The S3 key would be stored in the database as file_path
 		// For this endpoint, we construct the key from the filename
-		key := path.Join("vehicles/images", filename)
+		pathPrefix := fmt.Sprintf("vehicles/%s/images", id)
+		fmt.Println(pathPrefix)
+		key := path.Join(pathPrefix, filename)
 
 		//// Check if file exists in S3
 		exists, err := vc.s3Service.CheckIfFileExists(r.Context(), key)
