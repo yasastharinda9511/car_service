@@ -44,6 +44,7 @@ var VehicleFieldMapping = map[string]string{
 	"lc_bank":          "vp.lc_bank",
 	"lc_number":        "vp.lc_number",
 	"lc_cost":          "vp.lc_cost_jpy",
+	"purchase_status":  "vp.purchase_status",
 
 	// Financial table fields (alias: vf)
 	"total_cost":     "vf.total_cost_lkr",
