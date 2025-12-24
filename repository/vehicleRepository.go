@@ -157,7 +157,8 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 			COALESCE(vp.lc_bank, '') AS lc_bank,
 			COALESCE(vp.lc_number, '') AS lc_number,
 			COALESCE(vp.lc_cost_jpy, 0) AS lc_cost_jpy,
-			COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date`
+			COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date,
+			COALESCE(vp.purchase_status, 'LC_PENDING') AS purchase_status`
 	}
 
 	query += `
@@ -241,6 +242,7 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 			&vc.VehiclePurchase.BoughtFromOtherContacts, &vc.VehiclePurchase.PurchaseRemarks,
 			&vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber,
 			&vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
+			&vc.VehiclePurchase.PurchaseStatus,
 		)
 	}
 

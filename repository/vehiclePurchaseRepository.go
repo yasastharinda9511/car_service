@@ -27,7 +27,8 @@ func (r *VehiclePurchaseRepository) GetByVehicleID(ctx context.Context, exec dat
 	query := `
         SELECT id, vehicle_id, bought_from_name, bought_from_title,
                bought_from_contact, bought_from_address, bought_from_other_contacts,
-               purchase_remarks, lc_bank, lc_number, lc_cost_jpy, purchase_date
+               purchase_remarks, lc_bank, lc_number, lc_cost_jpy, purchase_date,
+               COALESCE(purchase_status, 'LC_PENDING') as purchase_status
         FROM cars.vehicle_purchases
         WHERE vehicle_id = $1
     `
@@ -36,6 +37,7 @@ func (r *VehiclePurchaseRepository) GetByVehicleID(ctx context.Context, exec dat
 		&vp.ID, &vp.VehicleID, &vp.BoughtFromName, &vp.BoughtFromTitle,
 		&vp.BoughtFromContact, &vp.BoughtFromAddress, &vp.BoughtFromOtherContacts,
 		&vp.PurchaseRemarks, &vp.LCBank, &vp.LCNumber, &vp.LCCostJPY, &vp.PurchaseDate,
+		&vp.PurchaseStatus,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -57,12 +59,13 @@ func (r *VehiclePurchaseRepository) UpdateVehiclePurchase(ctx context.Context, e
            lc_number = $9,
            lc_cost_jpy = $10,
            purchase_date = $11,
+           purchase_status = COALESCE($12, purchase_status),
            updated_at = CURRENT_TIMESTAMP
        WHERE vehicle_id = $1
    `
 
 	_, err := exec.ExecContext(ctx, query, vehicleID, request.BoughtFromName, request.BoughtFromTitle,
 		request.BoughtFromContact, request.BoughtFromAddress, request.BoughtFromOtherContacts, request.PurchaseRemarks,
-		request.LCBank, request.LCNumber, request.LCCostJPY, request.PurchaseDate)
+		request.LCBank, request.LCNumber, request.LCCostJPY, request.PurchaseDate, request.PurchaseStatus)
 	return err
 }

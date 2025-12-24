@@ -15,6 +15,7 @@ type VehiclePurchase struct {
 	LCNumber                *string    `json:"lc_number" database:"lc_number"`
 	LCCostJPY               *float64   `json:"lc_cost_jpy" database:"lc_cost_jpy"`
 	PurchaseDate            *time.Time `json:"purchase_date" database:"purchase_date"`
+	PurchaseStatus          string     `json:"purchase_status" database:"purchase_status"`
 	CreatedAt               time.Time  `json:"created_at" database:"created_at"`
 	UpdatedAt               time.Time  `json:"updated_at" database:"updated_at"`
 }

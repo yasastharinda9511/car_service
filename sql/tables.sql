@@ -31,6 +31,7 @@ CREATE TYPE cars.payment_method_enum AS ENUM ('CASH', 'FINANCING', 'LEASE', 'INS
 CREATE TYPE cars.order_status_enum AS ENUM ('DRAFT', 'SUBMITTED', 'PROCESSING', 'MATCHED', 'COMPLETED', 'CANCELLED');
 CREATE TYPE cars.document_type_enum AS ENUM ('INVOICE', 'SHIPPING', 'CUSTOMS', 'INSPECTION', 'REGISTRATION', 'OTHER', 'LC_DOCUMENT', 'RECEIPT', 'CONTRACT');
 CREATE TYPE cars.audit_action_enum AS ENUM ('INSERT', 'UPDATE', 'DELETE');
+CREATE TYPE cars.purchase_status_enum AS ENUM ('LC_PENDING', 'LC_OPENED', 'LC_RECEIVED', 'CANCELLED');
 
 -- =====================================================
 -- MAIN TABLES
@@ -83,6 +84,7 @@ CREATE TABLE cars.vehicle_purchases (
                                    lc_number VARCHAR(50),
                                    lc_cost_jpy DECIMAL(15,2),
                                    purchase_date TIMESTAMP,
+                                   purchase_status cars.purchase_status_enum DEFAULT 'LC_PENDING',
                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
