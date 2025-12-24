@@ -20,7 +20,7 @@ type VehicleShippingHistory struct {
 // VehicleShippingHistoryWithDetails includes vehicle details for better context
 type VehicleShippingHistoryWithDetails struct {
 	VehicleShippingHistory
-	VehicleCode           int      `json:"vehicle_code"`
+	VehicleCode           string   `json:"vehicle_code"`
 	Make                  string   `json:"make"`
 	Model                 string   `json:"model"`
 	ChassisID             string   `json:"chassis_id"`
