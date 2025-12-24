@@ -527,6 +527,7 @@ type DropdownOptions struct {
 	SaleStatuses      []string            `json:"sale_statuses"`
 	ConditionStatuses []string            `json:"condition_statuses"`
 	Currencies        []string            `json:"currencies"`
+	PurchaseStatuses  []string            `json:"purchase_statuses"`
 	Years             []int               `json:"years"`
 }
 
@@ -624,6 +625,13 @@ func (s *VehicleRepository) GetDropdownOptions(ctx context.Context, exec databas
 		"LKR",
 		"EUR",
 		"GBP",
+	}
+
+	options.PurchaseStatuses = []string{
+		"LC_PENDING",
+		"LC_OPENED",
+		"LC_RECEIVED",
+		"CANCELLED",
 	}
 
 	// Get distinct years (year_of_manufacture)
