@@ -8,6 +8,7 @@ const (
 	PURCHASE_ACCESS  = "purchase.access"
 
 	VEHICLE_CREATE = "vehicles.create"
+	VEHICLE_DELETE = "vehicles.delete"
 
 	VEHICLE_EDIT   = "vehicles.edit"
 	SHIPPING_EDIT  = "shipping.edit"

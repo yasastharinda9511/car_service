@@ -624,3 +624,24 @@ func (s *VehicleRepository) GetDropdownOptions(ctx context.Context, exec databas
 
 	return options, nil
 }
+
+// DeleteVehicle deletes a vehicle and all its related data (cascading delete)
+func (s *VehicleRepository) DeleteVehicle(ctx context.Context, exec database.Executor, vehicleID int64) error {
+	query := `DELETE FROM cars.vehicles WHERE id = $1`
+
+	result, err := exec.ExecContext(ctx, query, vehicleID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}

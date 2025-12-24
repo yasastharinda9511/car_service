@@ -66,6 +66,7 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.Handle("/{id}/financials", authMiddleware.Authorize(http.HandlerFunc(vc.updateFinancials), constants.FINANCIAL_EDIT)).Methods("PUT")
 	vehicles.Handle("/{id}/sales", authMiddleware.Authorize(http.HandlerFunc(vc.updateSales), constants.SALES_EDIT)).Methods("PUT")
 	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.updateVehicle), constants.VEHICLE_EDIT)).Methods("PUT")
+	vehicles.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.deleteVehicle), constants.VEHICLE_DELETE)).Methods("DELETE")
 
 	// Dropdown data route
 	vehicles.HandleFunc("/dropdown/options", vc.getDropdownOptions).Methods("GET")
@@ -549,6 +550,7 @@ func (vc *VehicleController) uploadDocumentHandler(w http.ResponseWriter, r *htt
 
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("Failed to upload %s to S3: %v", fileHeader.Filename, err))
+				fmt.Println("failed to upload file" + fileHeader.Filename + ": " + err.Error())
 				continue
 			}
 
@@ -631,6 +633,29 @@ func (vc *VehicleController) serveDocumentHandler(w http.ResponseWriter, r *http
 			},
 		})
 	}
+}
+
+func (vc *VehicleController) deleteVehicle(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	vehicleID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
+		return
+	}
+
+	err = vc.vehicleService.DeleteVehicle(r.Context(), vehicleID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			vc.writeError(w, http.StatusNotFound, "Vehicle not found")
+			return
+		}
+		vc.writeError(w, http.StatusInternalServerError, "Failed to delete vehicle")
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "Vehicle deleted successfully",
+	})
 }
 
 // getDropdownOptions returns all distinct values for dropdown filters in a single call

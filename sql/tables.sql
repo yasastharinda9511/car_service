@@ -29,7 +29,7 @@ CREATE TYPE cars.priority_level_enum AS ENUM ('NORMAL', 'HIGH', 'URGENT');
 CREATE TYPE cars.shipping_method_enum AS ENUM ('VESSEL', 'CONTAINER', 'RORO');
 CREATE TYPE cars.payment_method_enum AS ENUM ('CASH', 'FINANCING', 'LEASE', 'INSTALLMENT');
 CREATE TYPE cars.order_status_enum AS ENUM ('DRAFT', 'SUBMITTED', 'PROCESSING', 'MATCHED', 'COMPLETED', 'CANCELLED');
-CREATE TYPE cars.document_type_enum AS ENUM ('INVOICE', 'SHIPPING', 'CUSTOMS', 'INSPECTION', 'REGISTRATION', 'OTHER');
+CREATE TYPE cars.document_type_enum AS ENUM ('INVOICE', 'SHIPPING', 'CUSTOMS', 'INSPECTION', 'REGISTRATION', 'OTHER', 'LC_DOCUMENT', 'RECEIPT', 'CONTRACT');
 CREATE TYPE cars.audit_action_enum AS ENUM ('INSERT', 'UPDATE', 'DELETE');
 
 -- =====================================================

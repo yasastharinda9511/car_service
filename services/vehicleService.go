@@ -282,6 +282,11 @@ func (s *VehicleService) GetVehicleDocumentByID(ctx context.Context, id int64) (
 	return s.vehicleDocumentRepository.GetByID(ctx, s.db, id)
 }
 
+// DeleteVehicle deletes a vehicle by ID
+func (s *VehicleService) DeleteVehicle(ctx context.Context, vehicleID int64) error {
+	return s.vehicleRepository.DeleteVehicle(ctx, s.db, vehicleID)
+}
+
 //
 //func (s *VehicleService) CreateVehicleMake(vehicleMake request.CreateVehicleMake) (*entity.VehicleMake, error) {
 //	query := `
