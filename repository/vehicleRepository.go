@@ -515,6 +515,8 @@ func (s *VehicleRepository) GetVehicleBrandCount(ctx context.Context, exec datab
 type DropdownOptions struct {
 	MakesModels       map[string][]string `json:"makes_models"`
 	Colors            []string            `json:"colors"`
+	FuelTypes         []string            `json:"fuel_types"`
+	TransmissionTypes []string            `json:"transmission_types"`
 	ShippingStatuses  []string            `json:"shipping_statuses"`
 	SaleStatuses      []string            `json:"sale_statuses"`
 	ConditionStatuses []string            `json:"condition_statuses"`
@@ -568,6 +570,23 @@ func (s *VehicleRepository) GetDropdownOptions(ctx context.Context, exec databas
 		options.Colors = append(options.Colors, color)
 	}
 	rows.Close()
+
+	// Use predefined values for fuel types
+	options.FuelTypes = []string{
+		"Petrol",
+		"Diesel",
+		"Hybrid",
+		"Electric",
+		"Plug-in Hybrid",
+	}
+
+	// Use predefined values for transmission types
+	options.TransmissionTypes = []string{
+		"Automatic",
+		"Manual",
+		"CVT",
+		"Semi-Automatic",
+	}
 
 	// Use predefined enum values for shipping statuses
 	options.ShippingStatuses = []string{
