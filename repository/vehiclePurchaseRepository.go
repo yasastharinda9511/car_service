@@ -36,16 +36,26 @@ func (r *VehiclePurchaseRepository) GetByVehicleID(ctx context.Context, exec dat
         WHERE vp.vehicle_id = $1
     `
 	var vp entity.VehiclePurchase
-	var supplier entity.Supplier
-	var supplierID *int64
+
+	// Use sql.Null types for supplier fields to handle NULL values
+	var supplierID sql.NullInt64
+	var supplierName sql.NullString
+	var supplierTitle sql.NullString
+	var supplierContactNumber sql.NullString
+	var supplierEmail sql.NullString
+	var supplierAddress sql.NullString
+	var supplierOtherContacts sql.NullString
+	var supplierType sql.NullString
+	var supplierCountry sql.NullString
+	var supplierIsActive sql.NullBool
 
 	err := exec.QueryRowContext(ctx, query, vehicleID).Scan(
 		&vp.ID, &vp.VehicleID, &vp.SupplierID,
 		&vp.PurchaseRemarks, &vp.LCBank, &vp.LCNumber, &vp.LCCostJPY, &vp.PurchaseDate,
 		&vp.PurchaseStatus,
-		&supplierID, &supplier.SupplierName, &supplier.SupplierTitle, &supplier.ContactNumber,
-		&supplier.Email, &supplier.Address, &supplier.OtherContacts, &supplier.SupplierType,
-		&supplier.Country, &supplier.IsActive,
+		&supplierID, &supplierName, &supplierTitle, &supplierContactNumber,
+		&supplierEmail, &supplierAddress, &supplierOtherContacts, &supplierType,
+		&supplierCountry, &supplierIsActive,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -55,8 +65,31 @@ func (r *VehiclePurchaseRepository) GetByVehicleID(ctx context.Context, exec dat
 	}
 
 	// Only attach supplier if it exists
-	if supplierID != nil {
-		supplier.ID = *supplierID
+	if supplierID.Valid && supplierID.Int64 > 0 {
+		supplier := entity.Supplier{
+			ID:           supplierID.Int64,
+			SupplierName: supplierName.String,
+			SupplierType: supplierType.String,
+			Country:      supplierCountry.String,
+			IsActive:     supplierIsActive.Bool,
+		}
+
+		if supplierTitle.Valid {
+			supplier.SupplierTitle = &supplierTitle.String
+		}
+		if supplierContactNumber.Valid {
+			supplier.ContactNumber = &supplierContactNumber.String
+		}
+		if supplierEmail.Valid {
+			supplier.Email = &supplierEmail.String
+		}
+		if supplierAddress.Valid {
+			supplier.Address = &supplierAddress.String
+		}
+		if supplierOtherContacts.Valid {
+			supplier.OtherContacts = &supplierOtherContacts.String
+		}
+
 		vp.Supplier = &supplier
 	}
 
