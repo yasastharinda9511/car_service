@@ -29,68 +29,23 @@ func (r *VehiclePurchaseRepository) GetByVehicleID(ctx context.Context, exec dat
             vp.id, vp.vehicle_id, vp.supplier_id,
             vp.purchase_remarks, vp.lc_bank, vp.lc_number, vp.lc_cost_jpy, vp.purchase_date,
             COALESCE(vp.purchase_status, 'LC_PENDING') as purchase_status,
-            s.id, s.supplier_name, s.supplier_title, s.contact_number,
-            s.email, s.address, s.other_contacts, s.supplier_type, s.country, s.is_active
+            vp.created_at, vp.updated_at
         FROM cars.vehicle_purchases vp
-        LEFT JOIN cars.suppliers s ON vp.supplier_id = s.id
         WHERE vp.vehicle_id = $1
     `
 	var vp entity.VehiclePurchase
-
-	// Use sql.Null types for supplier fields to handle NULL values
-	var supplierID sql.NullInt64
-	var supplierName sql.NullString
-	var supplierTitle sql.NullString
-	var supplierContactNumber sql.NullString
-	var supplierEmail sql.NullString
-	var supplierAddress sql.NullString
-	var supplierOtherContacts sql.NullString
-	var supplierType sql.NullString
-	var supplierCountry sql.NullString
-	var supplierIsActive sql.NullBool
 
 	err := exec.QueryRowContext(ctx, query, vehicleID).Scan(
 		&vp.ID, &vp.VehicleID, &vp.SupplierID,
 		&vp.PurchaseRemarks, &vp.LCBank, &vp.LCNumber, &vp.LCCostJPY, &vp.PurchaseDate,
 		&vp.PurchaseStatus,
-		&supplierID, &supplierName, &supplierTitle, &supplierContactNumber,
-		&supplierEmail, &supplierAddress, &supplierOtherContacts, &supplierType,
-		&supplierCountry, &supplierIsActive,
+		&vp.CreatedAt, &vp.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
-	}
-
-	// Only attach supplier if it exists
-	if supplierID.Valid && supplierID.Int64 > 0 {
-		supplier := entity.Supplier{
-			ID:           supplierID.Int64,
-			SupplierName: supplierName.String,
-			SupplierType: supplierType.String,
-			Country:      supplierCountry.String,
-			IsActive:     supplierIsActive.Bool,
-		}
-
-		if supplierTitle.Valid {
-			supplier.SupplierTitle = &supplierTitle.String
-		}
-		if supplierContactNumber.Valid {
-			supplier.ContactNumber = &supplierContactNumber.String
-		}
-		if supplierEmail.Valid {
-			supplier.Email = &supplierEmail.String
-		}
-		if supplierAddress.Valid {
-			supplier.Address = &supplierAddress.String
-		}
-		if supplierOtherContacts.Valid {
-			supplier.OtherContacts = &supplierOtherContacts.String
-		}
-
-		vp.Supplier = &supplier
 	}
 
 	return &vp, nil

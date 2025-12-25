@@ -228,6 +228,39 @@ CREATE INDEX idx_shipping_history_new_status ON cars.vehicle_shipping_history(ne
 
 COMMENT ON TABLE cars.vehicle_shipping_history IS 'Tracks all changes to vehicle shipping status with timestamps and user information';
 
+-- Purchase History Table
+CREATE TABLE cars.vehicle_purchase_history (
+    id BIGSERIAL PRIMARY KEY,
+    vehicle_id BIGINT NOT NULL,
+    old_status cars.purchase_status_enum,
+    new_status cars.purchase_status_enum NOT NULL,
+    supplier_id BIGINT,
+    lc_bank VARCHAR(100),
+    lc_number VARCHAR(50),
+    lc_cost_jpy DECIMAL(15,2),
+    purchase_date TIMESTAMP,
+    purchase_remarks TEXT,
+    changed_by VARCHAR(100),
+    change_remarks TEXT,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_purchase_history_vehicle_id
+        FOREIGN KEY (vehicle_id)
+        REFERENCES cars.vehicles(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_purchase_history_supplier_id
+        FOREIGN KEY (supplier_id)
+        REFERENCES cars.suppliers(id)
+        ON DELETE SET NULL
+);
+
+CREATE INDEX idx_purchase_history_vehicle_id ON cars.vehicle_purchase_history(vehicle_id);
+CREATE INDEX idx_purchase_history_changed_at ON cars.vehicle_purchase_history(changed_at);
+CREATE INDEX idx_purchase_history_new_status ON cars.vehicle_purchase_history(new_status);
+CREATE INDEX idx_purchase_history_supplier_id ON cars.vehicle_purchase_history(supplier_id);
+
+COMMENT ON TABLE cars.vehicle_purchase_history IS 'Tracks all changes to vehicle purchase information with timestamps and user information';
+
 -- Financial Information Table
 CREATE TABLE cars.vehicle_financials (
     id BIGSERIAL PRIMARY KEY,
@@ -511,6 +544,56 @@ CREATE TRIGGER shipping_status_change_trigger
     AFTER INSERT OR UPDATE ON cars.vehicle_shipping
     FOR EACH ROW
     EXECUTE FUNCTION cars.log_shipping_status_change();
+
+-- =====================================================
+-- TRIGGERS FOR PURCHASE HISTORY
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION cars.log_purchase_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Log if any purchase field changed
+    IF (TG_OP = 'UPDATE' AND (
+        OLD.purchase_status IS DISTINCT FROM NEW.purchase_status OR
+        OLD.supplier_id IS DISTINCT FROM NEW.supplier_id OR
+        OLD.lc_bank IS DISTINCT FROM NEW.lc_bank OR
+        OLD.lc_number IS DISTINCT FROM NEW.lc_number OR
+        OLD.lc_cost_jpy IS DISTINCT FROM NEW.lc_cost_jpy OR
+        OLD.purchase_date IS DISTINCT FROM NEW.purchase_date OR
+        OLD.purchase_remarks IS DISTINCT FROM NEW.purchase_remarks
+    )) THEN
+        INSERT INTO cars.vehicle_purchase_history (
+            vehicle_id, old_status, new_status, supplier_id, lc_bank,
+            lc_number, lc_cost_jpy, purchase_date, purchase_remarks,
+            changed_by, changed_at
+        ) VALUES (
+            NEW.vehicle_id, OLD.purchase_status, NEW.purchase_status, NEW.supplier_id,
+            NEW.lc_bank, NEW.lc_number, NEW.lc_cost_jpy, NEW.purchase_date,
+            NEW.purchase_remarks, current_user, CURRENT_TIMESTAMP
+        );
+    END IF;
+
+    -- Log initial status on INSERT
+    IF (TG_OP = 'INSERT') THEN
+        INSERT INTO cars.vehicle_purchase_history (
+            vehicle_id, old_status, new_status, supplier_id, lc_bank,
+            lc_number, lc_cost_jpy, purchase_date, purchase_remarks,
+            changed_by, changed_at
+        ) VALUES (
+            NEW.vehicle_id, NULL, NEW.purchase_status, NEW.supplier_id,
+            NEW.lc_bank, NEW.lc_number, NEW.lc_cost_jpy, NEW.purchase_date,
+            NEW.purchase_remarks, current_user, CURRENT_TIMESTAMP
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER purchase_status_change_trigger
+    AFTER INSERT OR UPDATE ON cars.vehicle_purchases
+    FOR EACH ROW
+    EXECUTE FUNCTION cars.log_purchase_status_change();
 
 -- =====================================================
 -- TRIGGERS FOR AUDIT LOGGING

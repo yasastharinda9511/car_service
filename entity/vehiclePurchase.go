@@ -6,7 +6,6 @@ type VehiclePurchase struct {
 	ID              int64      `json:"id" database:"id"`
 	VehicleID       int64      `json:"vehicle_id" database:"vehicle_id"`
 	SupplierID      *int64     `json:"supplier_id" database:"supplier_id"`
-	Supplier        *Supplier  `json:"supplier,omitempty"`
 	PurchaseRemarks *string    `json:"purchase_remarks" database:"purchase_remarks"`
 	LCBank          *string    `json:"lc_bank" database:"lc_bank"`
 	LCNumber        *string    `json:"lc_number" database:"lc_number"`

@@ -80,6 +80,12 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.Handle("/shipping/history/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getShippingHistory), constants.SHIIPING_ACCESS)).Methods("GET")
 	vehicles.Handle("/shipping/history/recent", authMiddleware.Authorize(http.HandlerFunc(vc.getRecentShippingHistory), constants.SHIIPING_ACCESS)).Methods("GET")
 
+	// Purchase history routes
+	vehicles.Handle("/purchase/history/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.getPurchaseHistory), constants.PURCHASE_ACCESS)).Methods("GET")
+	vehicles.Handle("/purchase/history/recent", authMiddleware.Authorize(http.HandlerFunc(vc.getRecentPurchaseHistory), constants.PURCHASE_ACCESS)).Methods("GET")
+	vehicles.Handle("/purchase/history/status/{status}", authMiddleware.Authorize(http.HandlerFunc(vc.getPurchaseHistoryByStatus), constants.PURCHASE_ACCESS)).Methods("GET")
+	vehicles.Handle("/purchase/history/supplier/{supplier_id}", authMiddleware.Authorize(http.HandlerFunc(vc.getPurchaseHistoryBySupplier), constants.PURCHASE_ACCESS)).Methods("GET")
+
 	// Document management routes
 	vehicles.Handle("/upload-document/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadDocumentHandler), constants.VEHICLE_CREATE)).Methods("POST")
 	vehicles.Handle("/download-document/{document_id}", authMiddleware.Authorize(http.HandlerFunc(vc.serveDocumentHandler), constants.VEHICLE_ACCESS)).Methods("GET")
@@ -806,6 +812,108 @@ func (vc *VehicleController) getRecentShippingHistory(w http.ResponseWriter, r *
 		"meta": map[string]interface{}{
 			"limit": limit,
 			"total": len(history),
+		},
+	})
+}
+
+// getPurchaseHistory retrieves the purchase change history for a specific vehicle
+func (vc *VehicleController) getPurchaseHistory(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	vehicleID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
+		return
+	}
+
+	history, err := vc.vehicleService.GetPurchaseHistory(r.Context(), vehicleID)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": history,
+		"meta": map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"total":      len(history),
+		},
+	})
+}
+
+// getRecentPurchaseHistory retrieves recent purchase changes across all vehicles
+func (vc *VehicleController) getRecentPurchaseHistory(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 50 // Default limit
+	}
+	if limit > 200 {
+		limit = 200 // Max limit
+	}
+
+	history, err := vc.vehicleService.GetRecentPurchaseHistory(r.Context(), limit)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": history,
+		"meta": map[string]interface{}{
+			"limit": limit,
+			"total": len(history),
+		},
+	})
+}
+
+// getPurchaseHistoryByStatus retrieves purchase history filtered by status
+func (vc *VehicleController) getPurchaseHistoryByStatus(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	status := vars["status"]
+
+	// Validate status enum
+	validStatuses := map[string]bool{
+		"LC_PENDING": true, "LC_OPENED": true, "LC_RECEIVED": true, "CANCELLED": true,
+	}
+	if !validStatuses[status] {
+		vc.writeError(w, http.StatusBadRequest, "Invalid purchase status")
+		return
+	}
+
+	history, err := vc.vehicleService.GetPurchaseHistoryByStatus(r.Context(), status)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": history,
+		"meta": map[string]interface{}{
+			"status": status,
+			"total":  len(history),
+		},
+	})
+}
+
+// getPurchaseHistoryBySupplier retrieves purchase history for a specific supplier
+func (vc *VehicleController) getPurchaseHistoryBySupplier(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	supplierID, err := strconv.ParseInt(vars["supplier_id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid supplier ID")
+		return
+	}
+
+	history, err := vc.vehicleService.GetPurchaseHistoryBySupplier(r.Context(), supplierID)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": history,
+		"meta": map[string]interface{}{
+			"supplier_id": supplierID,
+			"total":       len(history),
 		},
 	})
 }

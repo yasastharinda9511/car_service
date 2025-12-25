@@ -28,6 +28,7 @@ type VehicleService struct {
 	vehiclePurchaseRepository        *repository.VehiclePurchaseRepository
 	vehicleSalesRepository           *repository.VehicleSalesRepository
 	vehicleShippingHistoryRepository *repository.VehicleShippingHistoryRepository
+	vehiclePurchaseHistoryRepository *repository.VehiclePurchaseHistoryRepository
 }
 
 func NewVehicleService(db *sql.DB) *VehicleService {
@@ -40,6 +41,7 @@ func NewVehicleService(db *sql.DB) *VehicleService {
 		vehicleSalesRepository:           repository.NewVehicleSalesRepository(),
 		vehicleShippingRepository:        repository.NewVehicleShippingRepository(),
 		vehicleShippingHistoryRepository: repository.NewVehicleShippingHistoryRepository(),
+		vehiclePurchaseHistoryRepository: repository.NewVehiclePurchaseHistoryRepository(),
 	}
 }
 
@@ -459,3 +461,23 @@ func (s *VehicleService) DeleteVehicle(ctx context.Context, vehicleID int64) err
 //	_, err := s.db.Db.Exec(query, id, modelName, bodyType, fuelType, transmissionType, engineSizeCC, isActive)
 //	return err
 //}
+
+// GetPurchaseHistory retrieves purchase change history for a vehicle
+func (s *VehicleService) GetPurchaseHistory(ctx context.Context, vehicleID int64) ([]entity.VehiclePurchaseHistoryWithDetails, error) {
+	return s.vehiclePurchaseHistoryRepository.GetHistoryByVehicleID(ctx, s.db, vehicleID)
+}
+
+// GetRecentPurchaseHistory retrieves recent purchase changes across all vehicles
+func (s *VehicleService) GetRecentPurchaseHistory(ctx context.Context, limit int) ([]entity.VehiclePurchaseHistoryWithDetails, error) {
+	return s.vehiclePurchaseHistoryRepository.GetRecentHistory(ctx, s.db, limit)
+}
+
+// GetPurchaseHistoryByStatus retrieves purchase history for a specific status
+func (s *VehicleService) GetPurchaseHistoryByStatus(ctx context.Context, status string) ([]entity.VehiclePurchaseHistoryWithDetails, error) {
+	return s.vehiclePurchaseHistoryRepository.GetHistoryByStatus(ctx, s.db, status)
+}
+
+// GetPurchaseHistoryBySupplier retrieves purchase history for a specific supplier
+func (s *VehicleService) GetPurchaseHistoryBySupplier(ctx context.Context, supplierID int64) ([]entity.VehiclePurchaseHistoryWithDetails, error) {
+	return s.vehiclePurchaseHistoryRepository.GetHistoryBySupplier(ctx, s.db, supplierID)
+}
