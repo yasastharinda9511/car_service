@@ -18,6 +18,7 @@ type VehicleFilters struct {
 	ShippingStatus  string
 	SaleStatus      string
 	PurchasedStatus string
+	SupplierID      int64
 	MileageMin      int
 	MileageMax      int
 	PriceMin        float64
@@ -60,6 +61,13 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 	v.PurchasedStatus = r.URL.Query().Get("purchase_status")
 	if v.PurchasedStatus != "" {
 		v.QueryBuilder.AddCondition(GetMappedField("purchase_status"), v.PurchasedStatus)
+	}
+
+	if supplierID := r.URL.Query().Get("supplier_id"); supplierID != "" {
+		v.SupplierID, _ = strconv.ParseInt(supplierID, 10, 64)
+		if v.SupplierID > 0 {
+			v.QueryBuilder.AddCondition(GetMappedField("supplier_id"), v.SupplierID)
+		}
 	}
 
 	v.SaleStatus = r.URL.Query().Get("sale_status")

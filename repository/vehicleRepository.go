@@ -179,7 +179,8 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 
 	if util.HasPermission(userPermissions, constants.PURCHASE_ACCESS) {
 		query += `
-		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id`
+		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id
+		LEFT JOIN cars.suppliers sup ON vp.supplier_id = sup.id`
 	}
 
 	return query
@@ -388,7 +389,8 @@ func (s *VehicleRepository) GetAllVehicleCount(ctx context.Context, exec databas
         LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
         LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
         LEFT JOIN cars.customers c ON vsl.customer_id = c.id
-        LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id`
+        LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id
+        LEFT JOIN cars.suppliers sup ON vp.supplier_id = sup.id`
 
 	query, args := filter.GetQueryForCount(query, "", "", -1, -1)
 
