@@ -74,7 +74,7 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 
 	v.Search = r.URL.Query().Get("search")
 	if v.Search != "" {
-		v.QueryBuilder.AddLikeCondition("(v.make || ' ' || v.model || ' ' || v.chassis_id || ' ' || v.color || ' ' || vs.shipping_status || ' ' || vsl.sale_status || ' ' || CAST(v.code AS TEXT) || ' ' || COALESCE(v.trim_level, '') || ' ' || CAST(v.year_of_manufacture AS TEXT) || ' ' || COALESCE(v.license_plate, '') || ' ' || COALESCE(v.auction_grade, '') || ' ' || COALESCE(vs.vessel_name, '') || ' ' || COALESCE(vs.departure_harbour, '') || ' ' || COALESCE(c.customer_name, '') || ' ' || COALESCE(vp.bought_from_name, ''))", v.Search)
+		v.QueryBuilder.AddLikeCondition("(v.make || ' ' || v.model || ' ' || v.chassis_id || ' ' || v.color || ' ' || vs.shipping_status || ' ' || vsl.sale_status || ' ' || CAST(v.code AS TEXT) || ' ' || COALESCE(v.trim_level, '') || ' ' || CAST(v.year_of_manufacture AS TEXT) || ' ' || COALESCE(v.license_plate, '') || ' ' || COALESCE(v.auction_grade, '') || ' ' || COALESCE(vs.vessel_name, '') || ' ' || COALESCE(vs.departure_harbour, '') || ' ' || COALESCE(c.customer_name, '') || ' ' || COALESCE(sup.supplier_name, ''))", v.Search)
 	}
 
 	if mileageMin := r.URL.Query().Get("mileage_min"); mileageMin != "" {

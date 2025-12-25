@@ -148,17 +148,23 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 		query += `,
 			COALESCE(vp.id, 0) AS vp_id,
 			COALESCE(vp.vehicle_id, 0) AS vp_vehicle_id,
-			COALESCE(vp.bought_from_name, '') AS bought_from_name,
-			COALESCE(vp.bought_from_title, '') AS bought_from_title,
-			COALESCE(vp.bought_from_contact, '') AS bought_from_contact,
-			COALESCE(vp.bought_from_address, '') AS bought_from_address,
-			COALESCE(vp.bought_from_other_contacts, '') AS bought_from_other_contacts,
+			COALESCE(vp.supplier_id, 0) AS supplier_id,
 			COALESCE(vp.purchase_remarks, '') AS purchase_remarks,
 			COALESCE(vp.lc_bank, '') AS lc_bank,
 			COALESCE(vp.lc_number, '') AS lc_number,
 			COALESCE(vp.lc_cost_jpy, 0) AS lc_cost_jpy,
 			COALESCE(vp.purchase_date, '1970-01-01') AS purchase_date,
-			COALESCE(vp.purchase_status, 'LC_PENDING') AS purchase_status`
+			COALESCE(vp.purchase_status, 'LC_PENDING') AS purchase_status,
+			sup.id AS sup_id,
+			sup.supplier_name AS supplier_name,
+			sup.supplier_title AS supplier_title,
+			sup.contact_number AS supplier_contact_number,
+			sup.email AS supplier_email,
+			sup.address AS supplier_address,
+			sup.other_contacts AS supplier_other_contacts,
+			sup.supplier_type AS supplier_type,
+			sup.country AS supplier_country,
+			sup.is_active AS supplier_is_active`
 	}
 
 	query += `
@@ -183,7 +189,8 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 
 	if util.HasPermission(userPermissions, constants.PURCHASE_ACCESS) {
 		query += `
-		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id`
+		LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id
+		LEFT JOIN cars.suppliers sup ON vp.supplier_id = sup.id`
 	}
 
 	return query
@@ -192,6 +199,18 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 // Scan vehicle based on permissions
 func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string) (entity.VehicleComplete, error) {
 	var vc entity.VehicleComplete
+
+	// Nullable types for supplier fields
+	var supplierID sql.NullInt64
+	var supplierName sql.NullString
+	var supplierTitle sql.NullString
+	var supplierContactNumber sql.NullString
+	var supplierEmail sql.NullString
+	var supplierAddress sql.NullString
+	var supplierOtherContacts sql.NullString
+	var supplierType sql.NullString
+	var supplierCountry sql.NullString
+	var supplierIsActive sql.NullBool
 
 	// Create slice for scanning - start with base vehicle fields
 	scanArgs := []interface{}{
@@ -237,17 +256,53 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 	if util.HasPermission(userPermissions, constants.PURCHASE_ACCESS) {
 		scanArgs = append(scanArgs,
 			&vc.VehiclePurchase.ID, &vc.VehiclePurchase.VehicleID,
-			&vc.VehiclePurchase.BoughtFromName, &vc.VehiclePurchase.BoughtFromTitle,
-			&vc.VehiclePurchase.BoughtFromContact, &vc.VehiclePurchase.BoughtFromAddress,
-			&vc.VehiclePurchase.BoughtFromOtherContacts, &vc.VehiclePurchase.PurchaseRemarks,
+			&vc.VehiclePurchase.SupplierID,
+			&vc.VehiclePurchase.PurchaseRemarks,
 			&vc.VehiclePurchase.LCBank, &vc.VehiclePurchase.LCNumber,
 			&vc.VehiclePurchase.LCCostJPY, &vc.VehiclePurchase.PurchaseDate,
 			&vc.VehiclePurchase.PurchaseStatus,
+			&supplierID, &supplierName, &supplierTitle,
+			&supplierContactNumber, &supplierEmail, &supplierAddress,
+			&supplierOtherContacts, &supplierType, &supplierCountry,
+			&supplierIsActive,
 		)
 	}
 
 	err := rows.Scan(scanArgs...)
-	return vc, err
+	if err != nil {
+		return vc, err
+	}
+
+	// After scanning, attach supplier if exists
+	if util.HasPermission(userPermissions, constants.PURCHASE_ACCESS) && supplierID.Valid && supplierID.Int64 > 0 {
+		supplier := entity.Supplier{
+			ID:           supplierID.Int64,
+			SupplierName: supplierName.String,
+			SupplierType: supplierType.String,
+			Country:      supplierCountry.String,
+			IsActive:     supplierIsActive.Bool,
+		}
+
+		if supplierTitle.Valid {
+			supplier.SupplierTitle = &supplierTitle.String
+		}
+		if supplierContactNumber.Valid {
+			supplier.ContactNumber = &supplierContactNumber.String
+		}
+		if supplierEmail.Valid {
+			supplier.Email = &supplierEmail.String
+		}
+		if supplierAddress.Valid {
+			supplier.Address = &supplierAddress.String
+		}
+		if supplierOtherContacts.Valid {
+			supplier.OtherContacts = &supplierOtherContacts.String
+		}
+
+		vc.VehiclePurchase.Supplier = &supplier
+	}
+
+	return vc, nil
 }
 
 // Helper method to fetch images for multiple vehicles
@@ -389,7 +444,8 @@ func (s *VehicleRepository) GetAllVehicleCount(ctx context.Context, exec databas
         LEFT JOIN cars.vehicle_financials vf ON v.id = vf.vehicle_id
         LEFT JOIN cars.vehicle_sales vsl ON v.id = vsl.vehicle_id
         LEFT JOIN cars.customers c ON vsl.customer_id = c.id
-        LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id`
+        LEFT JOIN cars.vehicle_purchases vp ON v.id = vp.vehicle_id
+        LEFT JOIN cars.suppliers sup ON vp.supplier_id = sup.id`
 
 	query, args := filter.GetQueryForCount(query, "", "", -1, -1)
 

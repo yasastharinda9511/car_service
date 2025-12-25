@@ -25,47 +25,61 @@ func (r *VehiclePurchaseRepository) InsertDefault(ctx context.Context, exec data
 
 func (r *VehiclePurchaseRepository) GetByVehicleID(ctx context.Context, exec database.Executor, vehicleID int64) (*entity.VehiclePurchase, error) {
 	query := `
-        SELECT id, vehicle_id, bought_from_name, bought_from_title,
-               bought_from_contact, bought_from_address, bought_from_other_contacts,
-               purchase_remarks, lc_bank, lc_number, lc_cost_jpy, purchase_date,
-               COALESCE(purchase_status, 'LC_PENDING') as purchase_status
-        FROM cars.vehicle_purchases
-        WHERE vehicle_id = $1
+        SELECT
+            vp.id, vp.vehicle_id, vp.supplier_id,
+            vp.purchase_remarks, vp.lc_bank, vp.lc_number, vp.lc_cost_jpy, vp.purchase_date,
+            COALESCE(vp.purchase_status, 'LC_PENDING') as purchase_status,
+            s.id, s.supplier_name, s.supplier_title, s.contact_number,
+            s.email, s.address, s.other_contacts, s.supplier_type, s.country, s.is_active
+        FROM cars.vehicle_purchases vp
+        LEFT JOIN cars.suppliers s ON vp.supplier_id = s.id
+        WHERE vp.vehicle_id = $1
     `
 	var vp entity.VehiclePurchase
+	var supplier entity.Supplier
+	var supplierID *int64
+
 	err := exec.QueryRowContext(ctx, query, vehicleID).Scan(
-		&vp.ID, &vp.VehicleID, &vp.BoughtFromName, &vp.BoughtFromTitle,
-		&vp.BoughtFromContact, &vp.BoughtFromAddress, &vp.BoughtFromOtherContacts,
+		&vp.ID, &vp.VehicleID, &vp.SupplierID,
 		&vp.PurchaseRemarks, &vp.LCBank, &vp.LCNumber, &vp.LCCostJPY, &vp.PurchaseDate,
 		&vp.PurchaseStatus,
+		&supplierID, &supplier.SupplierName, &supplier.SupplierTitle, &supplier.ContactNumber,
+		&supplier.Email, &supplier.Address, &supplier.OtherContacts, &supplier.SupplierType,
+		&supplier.Country, &supplier.IsActive,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	return &vp, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Only attach supplier if it exists
+	if supplierID != nil {
+		supplier.ID = *supplierID
+		vp.Supplier = &supplier
+	}
+
+	return &vp, nil
 }
 
 func (r *VehiclePurchaseRepository) UpdateVehiclePurchase(ctx context.Context, exec database.Executor, vehicleID int64, request *request.PurchaseRequest) error {
 
 	query := `
        UPDATE cars.vehicle_purchases
-       SET bought_from_name = $2,
-           bought_from_title = $3,
-           bought_from_contact = $4,
-           bought_from_address = $5,
-           bought_from_other_contacts = $6,
-           purchase_remarks = $7,
-           lc_bank = $8,
-           lc_number = $9,
-           lc_cost_jpy = $10,
-           purchase_date = $11,
-           purchase_status = COALESCE($12, purchase_status),
+       SET supplier_id = COALESCE($2, supplier_id),
+           purchase_remarks = COALESCE($3, purchase_remarks),
+           lc_bank = COALESCE($4, lc_bank),
+           lc_number = COALESCE($5, lc_number),
+           lc_cost_jpy = COALESCE($6, lc_cost_jpy),
+           purchase_date = COALESCE($7, purchase_date),
+           purchase_status = COALESCE($8, purchase_status),
            updated_at = CURRENT_TIMESTAMP
        WHERE vehicle_id = $1
    `
 
-	_, err := exec.ExecContext(ctx, query, vehicleID, request.BoughtFromName, request.BoughtFromTitle,
-		request.BoughtFromContact, request.BoughtFromAddress, request.BoughtFromOtherContacts, request.PurchaseRemarks,
-		request.LCBank, request.LCNumber, request.LCCostJPY, request.PurchaseDate, request.PurchaseStatus)
+	_, err := exec.ExecContext(ctx, query, vehicleID, request.SupplierID,
+		request.PurchaseRemarks, request.LCBank, request.LCNumber, request.LCCostJPY,
+		request.PurchaseDate, request.PurchaseStatus)
 	return err
 }
