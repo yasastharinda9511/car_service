@@ -1,7 +1,7 @@
 package request
 
 type UpdateVehicleRequest struct {
-	Code               *int     `json:"code"`
+	Code               *string  `json:"code"`
 	Make               *string  `json:"make"`
 	Model              *string  `json:"model"`
 	TrimLevel          *string  `json:"trim_level"`
