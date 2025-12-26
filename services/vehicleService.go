@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -197,6 +198,24 @@ func (s *VehicleService) UpdateShippingStatus(ctx context.Context, vehicleID int
 	var oldStatus string
 	if oldShipping != nil {
 		oldStatus = oldShipping.ShippingStatus
+	}
+
+	// Auto-set dates based on shipping status if not provided
+	currentTime := time.Now().Format(time.RFC3339)
+
+	// Auto-set shipment_date when status changes to SHIPPED or IN_TRANSIT
+	if (detailsRequest.ShippingStatus == "SHIPPED" || detailsRequest.ShippingStatus == "IN_TRANSIT") && detailsRequest.ShipmentDate == nil {
+		detailsRequest.ShipmentDate = &currentTime
+	}
+
+	// Auto-set arrival_date when status changes to ARRIVED
+	if detailsRequest.ShippingStatus == "ARRIVED" && detailsRequest.ArrivalDate == nil {
+		detailsRequest.ArrivalDate = &currentTime
+	}
+
+	// Auto-set clearing_date when status changes to CLEARED
+	if detailsRequest.ShippingStatus == "CLEARED" && detailsRequest.ClearingDate == nil {
+		detailsRequest.ClearingDate = &currentTime
 	}
 
 	// Update shipping status
