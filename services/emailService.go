@@ -25,7 +25,7 @@ func NewEmailService() *EmailService {
 }
 
 // SendShippingStatusEmail sends an email notification when shipping status changes
-func (e *EmailService) SendShippingStatusEmail(req request.ShippingStatusEmailRequest) error {
+func (e *EmailService) SendShippingStatusEmail(req request.ShippingStatusEmailRequest, authHeader string) error {
 	// Skip if email service URL is not configured
 	if e.baseURL == "" {
 		return fmt.Errorf("email service URL not configured")
@@ -50,6 +50,11 @@ func (e *EmailService) SendShippingStatusEmail(req request.ShippingStatusEmailRe
 
 	httpReq.Header.Set("Content-Type", "application/json")
 
+	// Add authorization header if provided
+	if authHeader != "" {
+		httpReq.Header.Set("Authorization", authHeader)
+	}
+
 	resp, err := e.client.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("failed to send email request: %w", err)
@@ -64,7 +69,7 @@ func (e *EmailService) SendShippingStatusEmail(req request.ShippingStatusEmailRe
 }
 
 // SendPurchaseStatusEmail sends an email notification when purchase status changes
-func (e *EmailService) SendPurchaseStatusEmail(req request.PurchaseStatusEmailRequest) error {
+func (e *EmailService) SendPurchaseStatusEmail(req request.PurchaseStatusEmailRequest, authHeader string) error {
 	// Skip if email service URL is not configured
 	if e.baseURL == "" {
 		return fmt.Errorf("email service URL not configured")
@@ -88,6 +93,11 @@ func (e *EmailService) SendPurchaseStatusEmail(req request.PurchaseStatusEmailRe
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Add authorization header if provided
+	if authHeader != "" {
+		httpReq.Header.Set("Authorization", authHeader)
+	}
 
 	resp, err := e.client.Do(httpReq)
 	if err != nil {

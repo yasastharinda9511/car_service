@@ -174,7 +174,10 @@ func (vc *VehicleController) updateShipping(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = vc.vehicleService.UpdateShippingStatus(r.Context(), id, req)
+	// Extract authorization header from request
+	authHeader := r.Header.Get("Authorization")
+
+	err = vc.vehicleService.UpdateShippingStatus(r.Context(), id, req, authHeader)
 	if err != nil {
 		vc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -207,7 +210,10 @@ func (vc *VehicleController) updatePurchase(w http.ResponseWriter, r *http.Reque
 		req.PurchaseDate = &parsed
 	}
 
-	err = vc.vehicleService.UpdatePurchaseDetails(r.Context(), id, &req)
+	// Extract authorization header from request
+	authHeader := r.Header.Get("Authorization")
+
+	err = vc.vehicleService.UpdatePurchaseDetails(r.Context(), id, &req, authHeader)
 	if err != nil {
 		vc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -462,7 +468,6 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 		// The S3 key would be stored in the database as file_path
 		// For this endpoint, we construct the key from the filename
 		pathPrefix := fmt.Sprintf("vehicles/%s/images", id)
-		fmt.Println(pathPrefix)
 		key := path.Join(pathPrefix, filename)
 
 		//// Check if file exists in S3

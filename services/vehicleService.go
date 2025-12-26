@@ -187,7 +187,7 @@ func (s *VehicleService) CreateVehicle(ctx context.Context, req request.CreateVe
 	return vehicle, nil
 }
 
-func (s *VehicleService) UpdateShippingStatus(ctx context.Context, vehicleID int64, detailsRequest request.ShippingDetailsRequest) error {
+func (s *VehicleService) UpdateShippingStatus(ctx context.Context, vehicleID int64, detailsRequest request.ShippingDetailsRequest, authHeader string) error {
 	// Fetch old shipping status before update
 	oldShipping, err := s.vehicleShippingRepository.GetByVehicleID(ctx, s.db, vehicleID)
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *VehicleService) UpdateShippingStatus(ctx context.Context, vehicleID int
 		}
 
 		// Prepare and send email notification
-		go s.sendShippingStatusEmail(vehicle, customer, oldStatus, newStatus, detailsRequest)
+		go s.sendShippingStatusEmail(vehicle, customer, oldStatus, newStatus, detailsRequest, authHeader)
 	}
 
 	return nil
@@ -242,6 +242,7 @@ func (s *VehicleService) sendShippingStatusEmail(
 	customer *entity.Customer,
 	oldStatus, newStatus string,
 	shippingDetails request.ShippingDetailsRequest,
+	authHeader string,
 ) {
 	// Format dates for email if available
 	var estimatedArrivalDate, actualArrivalDate *string
@@ -273,14 +274,14 @@ func (s *VehicleService) sendShippingStatusEmail(
 		emailReq.PortOfLoading = shippingDetails.DepartureHarbour
 	}
 
-	// Send email
-	if err := s.emailService.SendShippingStatusEmail(emailReq); err != nil {
+	// Send email with authorization header
+	if err := s.emailService.SendShippingStatusEmail(emailReq, authHeader); err != nil {
 		// Log error but don't fail (this is async)
 		fmt.Printf("Failed to send shipping status email: %v\n", err)
 	}
 }
 
-func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, purchaseRequest *request.PurchaseRequest) error {
+func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, purchaseRequest *request.PurchaseRequest, authHeader string) error {
 	// Fetch old purchase status before update
 	oldPurchase, err := s.vehiclePurchaseRepository.GetByVehicleID(ctx, s.db, id)
 	if err != nil {
@@ -343,7 +344,7 @@ func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, pu
 		}
 
 		// Prepare and send email notification
-		go s.sendPurchaseStatusEmail(vehicle, customer, oldStatus, newStatus, updatedPurchase, supplierName)
+		go s.sendPurchaseStatusEmail(vehicle, customer, oldStatus, newStatus, updatedPurchase, supplierName, authHeader)
 	}
 
 	return nil
@@ -356,6 +357,7 @@ func (s *VehicleService) sendPurchaseStatusEmail(
 	oldStatus, newStatus string,
 	purchaseDetails *entity.VehiclePurchase,
 	supplierName *string,
+	authHeader string,
 ) {
 	// Format purchase price if available
 	var purchasePrice *string
@@ -385,8 +387,8 @@ func (s *VehicleService) sendPurchaseStatusEmail(
 		Notes:           purchaseDetails.PurchaseRemarks,
 	}
 
-	// Send email
-	if err := s.emailService.SendPurchaseStatusEmail(emailReq); err != nil {
+	// Send email with authorization header
+	if err := s.emailService.SendPurchaseStatusEmail(emailReq, authHeader); err != nil {
 		// Log error but don't fail (this is async)
 		fmt.Printf("Failed to send purchase status email: %v\n", err)
 	}
