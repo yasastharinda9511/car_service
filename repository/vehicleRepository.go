@@ -111,9 +111,9 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 			COALESCE(vs.vehicle_id, 0) AS vs_vehicle_id,
 			COALESCE(vs.vessel_name, '') AS vessel_name,
 			COALESCE(vs.departure_harbour, '') AS departure_harbour,
-			COALESCE(vs.shipment_date, '1970-01-01') AS shipment_date,
-			COALESCE(vs.arrival_date, '1970-01-01') AS arrival_date,
-			COALESCE(vs.clearing_date, '1970-01-01') AS clearing_date,
+			COALESCE(vs.shipment_date, NULL) AS shipment_date,
+			COALESCE(vs.arrival_date, NULL) AS arrival_date,
+			COALESCE(vs.clearing_date, NULL) AS clearing_date,
 			COALESCE(vs.shipping_status, 'PROCESSING') AS shipping_status`
 	}
 
