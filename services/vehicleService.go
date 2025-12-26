@@ -4,16 +4,11 @@ import (
 	"car_service/dto/request"
 	"car_service/dto/response"
 	"car_service/entity"
-
-	//"car_service/database"
-	//"car_service/dto/request"
-	//"car_service/entity"
 	"car_service/filters"
 	"car_service/repository"
-	//"strings"
-	//"time"
 	"context"
 	"database/sql"
+	"fmt"
 
 	_ "github.com/lib/pq"
 )
@@ -29,6 +24,8 @@ type VehicleService struct {
 	vehicleSalesRepository           *repository.VehicleSalesRepository
 	vehicleShippingHistoryRepository *repository.VehicleShippingHistoryRepository
 	vehiclePurchaseHistoryRepository *repository.VehiclePurchaseHistoryRepository
+	customerRepository               *repository.CustomerRepository
+	emailService                     *EmailService
 }
 
 func NewVehicleService(db *sql.DB) *VehicleService {
@@ -42,6 +39,8 @@ func NewVehicleService(db *sql.DB) *VehicleService {
 		vehicleShippingRepository:        repository.NewVehicleShippingRepository(),
 		vehicleShippingHistoryRepository: repository.NewVehicleShippingHistoryRepository(),
 		vehiclePurchaseHistoryRepository: repository.NewVehiclePurchaseHistoryRepository(),
+		customerRepository:               repository.NewCustomerRepository(),
+		emailService:                     NewEmailService(),
 	}
 }
 
@@ -187,9 +186,96 @@ func (s *VehicleService) CreateVehicle(ctx context.Context, req request.CreateVe
 }
 
 func (s *VehicleService) UpdateShippingStatus(ctx context.Context, vehicleID int64, detailsRequest request.ShippingDetailsRequest) error {
-	err := s.vehicleShippingRepository.UpdateShippingStatus(ctx, s.db, vehicleID, detailsRequest)
-	return err
+	// Fetch old shipping status before update
+	oldShipping, err := s.vehicleShippingRepository.GetByVehicleID(ctx, s.db, vehicleID)
+	if err != nil {
+		return err
+	}
 
+	var oldStatus string
+	if oldShipping != nil {
+		oldStatus = oldShipping.ShippingStatus
+	}
+
+	// Update shipping status
+	err = s.vehicleShippingRepository.UpdateShippingStatus(ctx, s.db, vehicleID, detailsRequest)
+	if err != nil {
+		return err
+	}
+
+	// Only send email if status actually changed
+	newStatus := detailsRequest.ShippingStatus
+	if oldStatus != newStatus {
+		// Fetch vehicle details
+		vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, vehicleID)
+		if err != nil {
+			// Log error but don't fail the update
+			return nil
+		}
+
+		// Fetch sales information to get customer
+		sales, err := s.vehicleSalesRepository.GetByVehicleID(ctx, s.db, vehicleID)
+		if err != nil || sales == nil || sales.CustomerID == nil {
+			// No customer assigned, skip email
+			return nil
+		}
+
+		// Fetch customer details
+		customer, err := s.customerRepository.GetCustomerByID(ctx, s.db, *sales.CustomerID)
+		if err != nil || customer == nil || customer.Email == nil || *customer.Email == "" {
+			// Customer not found or no email, skip
+			return nil
+		}
+
+		// Prepare and send email notification
+		go s.sendShippingStatusEmail(vehicle, customer, oldStatus, newStatus, detailsRequest)
+	}
+
+	return nil
+}
+
+// sendShippingStatusEmail sends email notification asynchronously
+func (s *VehicleService) sendShippingStatusEmail(
+	vehicle *entity.Vehicle,
+	customer *entity.Customer,
+	oldStatus, newStatus string,
+	shippingDetails request.ShippingDetailsRequest,
+) {
+	// Format dates for email if available
+	var estimatedArrivalDate, actualArrivalDate *string
+	if shippingDetails.ArrivalDate != nil && *shippingDetails.ArrivalDate != "" {
+		estimatedArrivalDate = shippingDetails.ArrivalDate
+	}
+	if shippingDetails.ClearingDate != nil && *shippingDetails.ClearingDate != "" {
+		actualArrivalDate = shippingDetails.ClearingDate
+	}
+
+	// Build email request
+	emailReq := request.ShippingStatusEmailRequest{
+		ToEmail:              *customer.Email,
+		CustomerName:         customer.CustomerName,
+		CarMake:              vehicle.Make,
+		CarModel:             vehicle.Model,
+		CarYear:              fmt.Sprintf("%d", vehicle.YearOfManufacture),
+		ChassisNumber:        vehicle.ChassisID,
+		OldStatus:            oldStatus,
+		NewStatus:            newStatus,
+		ShippingOrderID:      vehicle.Code,
+		VesselName:           shippingDetails.VesselName,
+		EstimatedArrivalDate: estimatedArrivalDate,
+		ActualArrivalDate:    actualArrivalDate,
+	}
+
+	// Set port information if available
+	if shippingDetails.DepartureHarbour != nil {
+		emailReq.PortOfLoading = shippingDetails.DepartureHarbour
+	}
+
+	// Send email
+	if err := s.emailService.SendShippingStatusEmail(emailReq); err != nil {
+		// Log error but don't fail (this is async)
+		fmt.Printf("Failed to send shipping status email: %v\n", err)
+	}
 }
 
 func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, purchaseRequest *request.PurchaseRequest) error {
