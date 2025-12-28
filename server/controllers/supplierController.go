@@ -51,7 +51,7 @@ func (sc *SupplierController) SetupRoutes(db *sql.DB) {
 	}), constants.VEHICLE_ACCESS)).Methods("GET")
 
 	// GET supplier by ID
-	suppliers.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	suppliers.Handle("/{id:[0-9]+}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sc.getSupplierByID(w, r, db)
 	}), constants.VEHICLE_ACCESS)).Methods("GET")
 
@@ -61,12 +61,12 @@ func (sc *SupplierController) SetupRoutes(db *sql.DB) {
 	}), constants.VEHICLE_CREATE)).Methods("POST")
 
 	// PUT update supplier
-	suppliers.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	suppliers.Handle("/{id:[0-9]+}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sc.updateSupplier(w, r, db)
 	}), constants.VEHICLE_EDIT)).Methods("PUT")
 
 	// DELETE supplier (soft delete)
-	suppliers.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	suppliers.Handle("/{id:[0-9]+}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sc.deleteSupplier(w, r, db)
 	}), constants.VEHICLE_EDIT)).Methods("DELETE")
 

@@ -50,30 +50,30 @@ func (cc *CustomerController) SetupRoutes(db *sql.DB) {
 		cc.getCustomers(w, r, db)
 	}), constants.VEHICLE_ACCESS)).Methods("GET")
 
-	// GET customer by ID
-	customers.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cc.getCustomerByID(w, r, db)
-	}), constants.VEHICLE_ACCESS)).Methods("GET")
-
 	// POST create customer
 	customers.Handle("", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cc.createCustomer(w, r, db)
 	}), constants.VEHICLE_CREATE)).Methods("POST")
 
-	// PUT update customer
-	customers.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cc.updateCustomer(w, r, db)
-	}), constants.VEHICLE_EDIT)).Methods("PUT")
-
-	// DELETE customer (soft delete)
-	customers.Handle("/{id}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cc.deleteCustomer(w, r, db)
-	}), constants.VEHICLE_EDIT)).Methods("DELETE")
-
 	// GET search customers
 	customers.Handle("/search", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cc.searchCustomers(w, r, db)
 	}), constants.VEHICLE_ACCESS)).Methods("GET")
+
+	// GET customer by ID
+	customers.Handle("/{id:[0-9]+}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cc.getCustomerByID(w, r, db)
+	}), constants.VEHICLE_ACCESS)).Methods("GET")
+
+	// PUT update customer
+	customers.Handle("/{id:[0-9]+}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cc.updateCustomer(w, r, db)
+	}), constants.VEHICLE_EDIT)).Methods("PUT")
+
+	// DELETE customer (soft delete)
+	customers.Handle("/{id}:[0-9]+", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cc.deleteCustomer(w, r, db)
+	}), constants.VEHICLE_EDIT)).Methods("DELETE")
 }
 
 func (cc *CustomerController) createCustomer(w http.ResponseWriter, r *http.Request, db *sql.DB) {
