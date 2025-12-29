@@ -8,37 +8,39 @@ import (
 )
 
 type Config struct {
-	Port           string
-	DatabaseURL    string
-	Environment    string
-	AllowedOrigins []string
-	S3BucketName   string
-	S3Region       string
-	UseS3Storage   bool
-	IntrospectURL  string
-	Region         string
-	SecretKey      string
-	AccessKey      string
-	BucketName     string
-	LogLevel       string
-	LogFormat      string
+	Port                   string
+	DatabaseURL            string
+	Environment            string
+	AllowedOrigins         []string
+	S3BucketName           string
+	S3Region               string
+	UseS3Storage           bool
+	IntrospectURL          string
+	Region                 string
+	SecretKey              string
+	AccessKey              string
+	BucketName             string
+	LogLevel               string
+	LogFormat              string
+	NotificationServiceURL string
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:           getEnv("PORT", "8080"),
-		Environment:    getEnv("ENVIRONMENT", "development"),
-		AllowedOrigins: getEnvAsSlice("ALLOWED_ORIGINS", []string{"*"}),
-		S3BucketName:   getEnv("S3_BUCKET_NAME", ""),
-		S3Region:       getEnv("S3_REGION", "us-east-1"),
-		UseS3Storage:   getEnv("USE_S3_STORAGE", "false") == "true",
-		IntrospectURL:  getEnv("INTROSPECT_URL", "http://localhost:8080/"),
-		Region:         getEnv("SPACES_REGION", "sgp1"), // e.g., "nyc3", "sfo3", "ams3", "sgp1", "fra1"
-		AccessKey:      getEnv("SPACE_ACCESS_KEY", ""),  // Your Spaces access key
-		SecretKey:      getEnv("SPACE_SECRET_KEY", ""),  // Your Spaces secret key
-		BucketName:     getEnv("SPACE_BUCKET", ""),      // Your Space name, e.g., "myapp-images"
-		LogLevel:       getEnv("LOG_LEVEL", "INFO"),     // DEBUG, INFO, WARN, ERROR, FATAL
-		LogFormat:      getEnv("LOG_FORMAT", "text"),    // text or json
+		Port:                   getEnv("PORT", "8080"),
+		Environment:            getEnv("ENVIRONMENT", "development"),
+		AllowedOrigins:         getEnvAsSlice("ALLOWED_ORIGINS", []string{"*"}),
+		S3BucketName:           getEnv("S3_BUCKET_NAME", ""),
+		S3Region:               getEnv("S3_REGION", "us-east-1"),
+		UseS3Storage:           getEnv("USE_S3_STORAGE", "false") == "true",
+		IntrospectURL:          getEnv("INTROSPECT_URL", "http://localhost:8080/"),
+		Region:                 getEnv("SPACES_REGION", "sgp1"), // e.g., "nyc3", "sfo3", "ams3", "sgp1", "fra1"
+		AccessKey:              getEnv("SPACE_ACCESS_KEY", ""),  // Your Spaces access key
+		SecretKey:              getEnv("SPACE_SECRET_KEY", ""),  // Your Spaces secret key
+		BucketName:             getEnv("SPACE_BUCKET", ""),      // Your Space name, e.g., "myapp-images"
+		LogLevel:               getEnv("LOG_LEVEL", "INFO"),     // DEBUG, INFO, WARN, ERROR, FATAL
+		LogFormat:              getEnv("LOG_FORMAT", "text"),    // text or json
+		NotificationServiceURL: getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8080"),
 	}
 
 	// Build database URL

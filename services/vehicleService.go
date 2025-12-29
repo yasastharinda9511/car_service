@@ -6,10 +6,11 @@ import (
 	"car_service/entity"
 	"car_service/filters"
 	"car_service/logger"
+	"car_service/middleware"
+	"car_service/notificationHandlers"
 	"car_service/repository"
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -28,10 +29,10 @@ type VehicleService struct {
 	vehiclePurchaseHistoryRepository *repository.VehiclePurchaseHistoryRepository
 	customerRepository               *repository.CustomerRepository
 	supplierRepository               *repository.SupplierRepository
-	emailService                     *EmailService
+	notificationService              *NotificationService
 }
 
-func NewVehicleService(db *sql.DB) *VehicleService {
+func NewVehicleService(db *sql.DB, notificationService *NotificationService) *VehicleService {
 	return &VehicleService{db: db,
 		vehicleRepository:                repository.NewVehicleRepository(),
 		vehicleIMageRepository:           repository.NewVehicleImageRepository(),
@@ -44,7 +45,7 @@ func NewVehicleService(db *sql.DB) *VehicleService {
 		vehiclePurchaseHistoryRepository: repository.NewVehiclePurchaseHistoryRepository(),
 		customerRepository:               repository.NewCustomerRepository(),
 		supplierRepository:               repository.NewSupplierRepository(),
-		emailService:                     NewEmailService(),
+		notificationService:              notificationService,
 	}
 }
 
@@ -338,68 +339,34 @@ func (s *VehicleService) UpdateShippingStatus(ctx context.Context, vehicleID int
 
 		// Fetch sales information to get customer
 		sales, err := s.vehicleSalesRepository.GetByVehicleID(ctx, s.db, vehicleID)
-		if err != nil || sales == nil || sales.CustomerID == nil {
-			// No customer assigned, skip email
-			return nil
+		var customer *entity.Customer
+		if sales != nil && sales.CustomerID != nil {
+			customer, err = s.customerRepository.GetCustomerByID(ctx, s.db, *sales.CustomerID)
+			if err != nil {
+				return err
+			}
 		}
 
-		// Fetch customer details
-		customer, err := s.customerRepository.GetCustomerByID(ctx, s.db, *sales.CustomerID)
-		if err != nil || customer == nil || customer.Email == nil || *customer.Email == "" {
-			// Customer not found or no email, skip
-			return nil
-		}
+		userID, _ := middleware.GetUserIDFromContext(ctx)
 
-		// Prepare and send email notification
-		go s.sendShippingStatusEmail(vehicle, customer, oldStatus, newStatus, detailsRequest, authHeader)
+		shippingStatusHandler := notificationHandlers.NewShippingStatusNotificationHandler(
+			vehicle, customer, oldStatus, newStatus, userID,
+		)
+
+		// Send notification asynchronously with error handling
+		go func() {
+			if err := s.notificationService.SendNotification(shippingStatusHandler, authHeader); err != nil {
+				logger.WithFields(map[string]interface{}{
+					"vehicle_id": vehicleID,
+					"old_status": oldStatus,
+					"new_status": newStatus,
+					"error":      err.Error(),
+				}).Error("Failed to send shipping status notification")
+			}
+		}()
 	}
 
 	return nil
-}
-
-// sendShippingStatusEmail sends email notification asynchronously
-func (s *VehicleService) sendShippingStatusEmail(
-	vehicle *entity.Vehicle,
-	customer *entity.Customer,
-	oldStatus, newStatus string,
-	shippingDetails request.ShippingDetailsRequest,
-	authHeader string,
-) {
-	// Format dates for email if available
-	var estimatedArrivalDate, actualArrivalDate *string
-	if shippingDetails.ArrivalDate != nil && *shippingDetails.ArrivalDate != "" {
-		estimatedArrivalDate = shippingDetails.ArrivalDate
-	}
-	if shippingDetails.ClearingDate != nil && *shippingDetails.ClearingDate != "" {
-		actualArrivalDate = shippingDetails.ClearingDate
-	}
-
-	// Build email request
-	emailReq := request.ShippingStatusEmailRequest{
-		ToEmail:              *customer.Email,
-		CustomerName:         customer.CustomerName,
-		CarMake:              vehicle.Make,
-		CarModel:             vehicle.Model,
-		CarYear:              fmt.Sprintf("%d", vehicle.YearOfManufacture),
-		ChassisNumber:        vehicle.ChassisID,
-		OldStatus:            oldStatus,
-		NewStatus:            newStatus,
-		ShippingOrderID:      vehicle.Code,
-		VesselName:           shippingDetails.VesselName,
-		EstimatedArrivalDate: estimatedArrivalDate,
-		ActualArrivalDate:    actualArrivalDate,
-	}
-
-	// Set port information if available
-	if shippingDetails.DepartureHarbour != nil {
-		emailReq.PortOfLoading = shippingDetails.DepartureHarbour
-	}
-
-	// Send email with authorization header
-	if err := s.emailService.SendShippingStatusEmail(emailReq, authHeader); err != nil {
-		// Log error but don't fail (this is async)
-		fmt.Printf("Failed to send shipping status email: %v\n", err)
-	}
 }
 
 func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, purchaseRequest *request.PurchaseRequest, authHeader string) error {
@@ -437,16 +404,14 @@ func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, pu
 
 		// Fetch sales information to get customer
 		sales, err := s.vehicleSalesRepository.GetByVehicleID(ctx, s.db, id)
-		if err != nil || sales == nil || sales.CustomerID == nil {
-			// No customer assigned, skip email
-			return nil
-		}
 
 		// Fetch customer details
-		customer, err := s.customerRepository.GetCustomerByID(ctx, s.db, *sales.CustomerID)
-		if err != nil || customer == nil || customer.Email == nil || *customer.Email == "" {
-			// Customer not found or no email, skip
-			return nil
+		var customer *entity.Customer
+		if sales != nil && sales.CustomerID != nil {
+			customer, err = s.customerRepository.GetCustomerByID(ctx, s.db, *sales.CustomerID)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Fetch updated purchase details to get all fields
@@ -457,62 +422,33 @@ func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, pu
 
 		// Fetch supplier details if available
 		var supplierName *string
-		if updatedPurchase.SupplierID != nil {
+		if updatedPurchase != nil && updatedPurchase.SupplierID != nil {
 			supplier, err := s.supplierRepository.GetSupplierByID(ctx, s.db, *updatedPurchase.SupplierID)
 			if err == nil && supplier != nil {
 				supplierName = &supplier.SupplierName
 			}
 		}
 
-		// Prepare and send email notification
-		go s.sendPurchaseStatusEmail(vehicle, customer, oldStatus, newStatus, updatedPurchase, supplierName, authHeader)
+		userID, _ := middleware.GetUserIDFromContext(ctx)
+
+		purchasingStatusHandler := notificationHandlers.NewPurchasingStatusNotificationHandler(
+			vehicle, customer, oldStatus, newStatus, supplierName, userID,
+		)
+
+		// Send notification asynchronously with error handling
+		go func() {
+			if err := s.notificationService.SendNotification(purchasingStatusHandler, authHeader); err != nil {
+				logger.WithFields(map[string]interface{}{
+					"vehicle_id": id,
+					"old_status": oldStatus,
+					"new_status": newStatus,
+					"error":      err.Error(),
+				}).Error("Failed to send purchasing status notification")
+			}
+		}()
 	}
 
 	return nil
-}
-
-// sendPurchaseStatusEmail sends email notification asynchronously
-func (s *VehicleService) sendPurchaseStatusEmail(
-	vehicle *entity.Vehicle,
-	customer *entity.Customer,
-	oldStatus, newStatus string,
-	purchaseDetails *entity.VehiclePurchase,
-	supplierName *string,
-	authHeader string,
-) {
-	// Format purchase price if available
-	var purchasePrice *string
-	if purchaseDetails.LCCostJPY != nil {
-		price := fmt.Sprintf("%.2f", *purchaseDetails.LCCostJPY)
-		purchasePrice = &price
-	}
-
-	// Default currency
-	currency := "JPY"
-
-	// Build email request
-	emailReq := request.PurchaseStatusEmailRequest{
-		ToEmail:         *customer.Email,
-		CustomerName:    customer.CustomerName,
-		CarMake:         vehicle.Make,
-		CarModel:        vehicle.Model,
-		CarYear:         fmt.Sprintf("%d", vehicle.YearOfManufacture),
-		ChassisNumber:   vehicle.ChassisID,
-		OldStatus:       oldStatus,
-		NewStatus:       newStatus,
-		PurchaseOrderID: vehicle.Code,
-		LCNumber:        purchaseDetails.LCNumber,
-		SupplierName:    supplierName,
-		PurchasePrice:   purchasePrice,
-		Currency:        &currency,
-		Notes:           purchaseDetails.PurchaseRemarks,
-	}
-
-	// Send email with authorization header
-	if err := s.emailService.SendPurchaseStatusEmail(emailReq, authHeader); err != nil {
-		// Log error but don't fail (this is async)
-		fmt.Printf("Failed to send purchase status email: %v\n", err)
-	}
 }
 
 func (s *VehicleService) UpdateFinancialDetails(ctx context.Context, vehicleID int64, detailsRequest *request.FinancialDetailsRequest) error {

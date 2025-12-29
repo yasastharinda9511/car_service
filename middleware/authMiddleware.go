@@ -16,7 +16,10 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-const permissionsKey = "permissions"
+const (
+	permissionsKey = "permissions"
+	userIDKey      = "user_id"
+)
 
 type AuthMiddleware struct {
 	client             *http.Client
@@ -112,6 +115,7 @@ func (authMiddleware *AuthMiddleware) Authorize(next http.Handler, permission st
 
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, permissionsKey, claims.Permissions)
+		ctx = context.WithValue(ctx, userIDKey, claims.Subject)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -173,4 +177,16 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write([]byte(`{"error":"` + message + `"}`))
+}
+
+// GetUserIDFromContext retrieves the user ID from the request context
+func GetUserIDFromContext(ctx context.Context) (string, bool) {
+	userID, ok := ctx.Value(userIDKey).(string)
+	return userID, ok
+}
+
+// GetPermissionsFromContext retrieves the permissions from the request context
+func GetPermissionsFromContext(ctx context.Context) ([]string, bool) {
+	permissions, ok := ctx.Value(permissionsKey).([]string)
+	return permissions, ok
 }

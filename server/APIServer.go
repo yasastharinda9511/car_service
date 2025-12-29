@@ -27,7 +27,8 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	}
 
 	logger.Debug("Creating service instances")
-	vehicleService := services.NewVehicleService(db)
+	notificationService := services.NewNotificationService(cfg.NotificationServiceURL)
+	vehicleService := services.NewVehicleService(db, notificationService)
 	analyticService := services.NewAnalyticsService(db)
 
 	// Initialize S3 service if enabled
