@@ -142,7 +142,7 @@ func (cc *CustomerController) createCustomer(w http.ResponseWriter, r *http.Requ
 	}
 
 	logger.WithFields(map[string]interface{}{
-		"customer_id":   customer.CustomerID,
+		"customer_id":   customer.ID,
 		"customer_name": customer.CustomerName,
 	}).Info("Customer created successfully")
 
