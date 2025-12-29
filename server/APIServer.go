@@ -2,12 +2,11 @@ package server
 
 import (
 	"car_service/config"
+	"car_service/logger"
 	"car_service/server/controllers"
-
 	"car_service/services"
 	"database/sql"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
@@ -20,29 +19,45 @@ type APIServer struct {
 }
 
 func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
+	logger.Info("Initializing API server")
+
 	server := &APIServer{
 		router: mux.NewRouter(),
 		db:     db,
 	}
 
+	logger.Debug("Creating service instances")
 	vehicleService := services.NewVehicleService(db)
 	analyticService := services.NewAnalyticsService(db)
 
 	// Initialize S3 service if enabled
 	var s3Service *services.S3Service
 	if cfg.UseS3Storage {
+		logger.WithFields(map[string]interface{}{
+			"bucket": cfg.BucketName,
+			"region": cfg.Region,
+		}).Info("Initializing S3 storage service")
+
 		var err error
 		s3Service, err = services.NewS3Service(cfg.Region, cfg.AccessKey, cfg.SecretKey, cfg.BucketName)
 		if err != nil {
-			log.Printf("Warning: Failed to initialize S3 service: %v. Falling back to local storage.", err)
+			logger.WithFields(map[string]interface{}{
+				"error":  err.Error(),
+				"bucket": cfg.BucketName,
+				"region": cfg.Region,
+			}).Warn("Failed to initialize S3 service, falling back to local storage")
 			cfg.UseS3Storage = false
 		} else {
-			log.Printf("S3 storage enabled: bucket=%s, region=%s", cfg.S3BucketName, cfg.S3Region)
+			logger.WithFields(map[string]interface{}{
+				"bucket": cfg.BucketName,
+				"region": cfg.Region,
+			}).Info("S3 storage initialized successfully")
 		}
 	} else {
-		log.Println("Using local file storage for images")
+		logger.Info("Using local file storage for images")
 	}
 
+	logger.Debug("Initializing controllers")
 	vehicleController := controllers.NewVehicleController(vehicleService, s3Service, server.router, cfg.IntrospectURL)
 	analyticController := controllers.NewAnalyticController(analyticService, server.router)
 	vehicleMakeController := controllers.NewVehicleMakeController(server.router, cfg.IntrospectURL)
@@ -50,6 +65,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	customerController := controllers.NewCustomerController(server.router, cfg.IntrospectURL)
 	supplierController := controllers.NewSupplierController(server.router, cfg.IntrospectURL)
 
+	logger.Debug("Setting up controller routes")
 	vehicleController.SetupRoutes()
 	analyticController.SetupRoutes()
 	vehicleMakeController.SetupRoutes(db)
@@ -58,6 +74,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	supplierController.SetupRoutes(db)
 
 	server.setupRoutes()
+	logger.Info("API server initialization completed")
 	return server
 }
 
@@ -101,6 +118,7 @@ func (s *APIServer) writeError(w http.ResponseWriter, status int, message string
 // Health check handler
 func (s *APIServer) healthCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger.Debug("Health check requested")
 
 	// Initialize response
 	response := map[string]interface{}{
@@ -120,6 +138,7 @@ func (s *APIServer) healthCheck(w http.ResponseWriter, r *http.Request) {
 
 	// Ping database with timeout
 	if err := s.db.PingContext(ctx); err != nil {
+		logger.WithField("error", err.Error()).Error("Health check: Database ping failed")
 		dbHealth["status"] = "unhealthy"
 		dbHealth["error"] = err.Error()
 		overallHealthy = false
@@ -135,10 +154,12 @@ func (s *APIServer) healthCheck(w http.ResponseWriter, r *http.Request) {
 		var schemaExists bool
 		err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'cars')").Scan(&schemaExists)
 		if err != nil {
+			logger.WithField("error", err.Error()).Error("Health check: Schema verification failed")
 			dbHealth["schema_check"] = "error"
 			dbHealth["schema_error"] = err.Error()
 			overallHealthy = false
 		} else if !schemaExists {
+			logger.Warn("Health check: Cars schema not found")
 			dbHealth["schema_check"] = "warning"
 			dbHealth["schema_warning"] = "cars schema not found"
 		} else {
@@ -150,11 +171,13 @@ func (s *APIServer) healthCheck(w http.ResponseWriter, r *http.Request) {
 
 	// Set overall status
 	if !overallHealthy {
+		logger.Warn("Health check failed")
 		response["status"] = "unhealthy"
 		s.writeJSON(w, http.StatusServiceUnavailable, response)
 		return
 	}
 
+	logger.Debug("Health check passed")
 	s.writeJSON(w, http.StatusOK, response)
 }
 
@@ -173,6 +196,7 @@ func (s *APIServer) livenessCheck(w http.ResponseWriter, r *http.Request) {
 // This is used by Kubernetes to know if it should send traffic to the pod
 func (s *APIServer) readinessCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger.Debug("Readiness check requested")
 
 	response := map[string]interface{}{
 		"status":    "ready",
@@ -182,6 +206,7 @@ func (s *APIServer) readinessCheck(w http.ResponseWriter, r *http.Request) {
 
 	// Check database connectivity for readiness
 	if err := s.db.PingContext(ctx); err != nil {
+		logger.WithField("error", err.Error()).Warn("Readiness check: Database unavailable")
 		response["status"] = "not_ready"
 		response["reason"] = "database_unavailable"
 		response["error"] = err.Error()
@@ -193,6 +218,7 @@ func (s *APIServer) readinessCheck(w http.ResponseWriter, r *http.Request) {
 	var schemaExists bool
 	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'cars')").Scan(&schemaExists)
 	if err != nil || !schemaExists {
+		logger.WithField("error", err).Warn("Readiness check: Schema not found or inaccessible")
 		response["status"] = "not_ready"
 		response["reason"] = "schema_not_found"
 		if err != nil {
@@ -202,13 +228,27 @@ func (s *APIServer) readinessCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger.Debug("Readiness check passed")
 	s.writeJSON(w, http.StatusOK, response)
 }
 
 func (s *APIServer) Start(port string, allowedOrigins []string) error {
-	log.Printf("Starting server on port %s", port)
+	logger.WithFields(map[string]interface{}{
+		"port":            port,
+		"allowed_origins": allowedOrigins,
+	}).Info("Starting HTTP server")
+
 	cors := config.NewCorsConfig(allowedOrigins)
-	return http.ListenAndServe(":"+port, cors.WithCORS(s.router))
+	err := http.ListenAndServe(":"+port, cors.WithCORS(s.router))
+
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"port":  port,
+			"error": err.Error(),
+		}).Error("Server failed to start")
+	}
+
+	return err
 }
 
 //	func (s *APIServer) createVehicleMake(w http.ResponseWriter, r *http.Request) {

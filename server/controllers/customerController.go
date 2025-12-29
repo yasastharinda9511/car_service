@@ -3,6 +3,7 @@ package controllers
 import (
 	"car_service/dto/request"
 	"car_service/internal/constants"
+	"car_service/logger"
 	"car_service/middleware"
 	"car_service/repository"
 	"database/sql"
@@ -77,20 +78,28 @@ func (cc *CustomerController) SetupRoutes(db *sql.DB) {
 }
 
 func (cc *CustomerController) createCustomer(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	logger.WithFields(map[string]interface{}{
+		"method": r.Method,
+		"path":   r.URL.Path,
+	}).Info("Create customer request received")
+
 	var req request.CreateCustomerRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.WithField("error", err.Error()).Warn("Invalid JSON in create customer request")
 		cc.writeError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
 	// Validation
 	if req.CustomerName == "" {
+		logger.Warn("Create customer request missing customer name")
 		cc.writeError(w, http.StatusBadRequest, "Customer name is required")
 		return
 	}
 
 	if req.CustomerType == "" {
+		logger.Warn("Create customer request missing customer type")
 		cc.writeError(w, http.StatusBadRequest, "Customer type is required")
 		return
 	}
@@ -98,6 +107,7 @@ func (cc *CustomerController) createCustomer(w http.ResponseWriter, r *http.Requ
 	// Validate customer type enum
 	validTypes := map[string]bool{"INDIVIDUAL": true, "BUSINESS": true}
 	if !validTypes[req.CustomerType] {
+		logger.WithField("customer_type", req.CustomerType).Warn("Invalid customer type provided")
 		cc.writeError(w, http.StatusBadRequest, "Invalid customer type. Must be INDIVIDUAL or BUSINESS")
 		return
 	}
@@ -108,15 +118,33 @@ func (cc *CustomerController) createCustomer(w http.ResponseWriter, r *http.Requ
 		req.IsActive = &defaultActive
 	}
 
+	logger.WithFields(map[string]interface{}{
+		"customer_name": req.CustomerName,
+		"customer_type": req.CustomerType,
+	}).Debug("Creating customer in repository")
+
 	customer, err := cc.customerRepository.CreateCustomer(r.Context(), db, req)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+			logger.WithFields(map[string]interface{}{
+				"customer_name": req.CustomerName,
+				"error":         err.Error(),
+			}).Warn("Duplicate customer creation attempted")
 			cc.writeError(w, http.StatusConflict, "Customer with this information already exists")
 			return
 		}
+		logger.WithFields(map[string]interface{}{
+			"customer_name": req.CustomerName,
+			"error":         err.Error(),
+		}).Error("Failed to create customer")
 		cc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	logger.WithFields(map[string]interface{}{
+		"customer_id":   customer.CustomerID,
+		"customer_name": customer.CustomerName,
+	}).Info("Customer created successfully")
 
 	cc.writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"data":    customer,
@@ -128,6 +156,11 @@ func (cc *CustomerController) getCustomers(w http.ResponseWriter, r *http.Reques
 	customerType := r.URL.Query().Get("customer_type")
 	activeOnly := r.URL.Query().Get("active_only") == "true"
 
+	logger.WithFields(map[string]interface{}{
+		"customer_type": customerType,
+		"active_only":   activeOnly,
+	}).Info("Get customers request received")
+
 	var customerTypePtr *string
 	if customerType != "" {
 		customerTypePtr = &customerType
@@ -135,9 +168,16 @@ func (cc *CustomerController) getCustomers(w http.ResponseWriter, r *http.Reques
 
 	customers, err := cc.customerRepository.GetAllCustomers(r.Context(), db, customerTypePtr, activeOnly)
 	if err != nil {
+		logger.WithField("error", err.Error()).Error("Failed to fetch customers")
 		cc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	logger.WithFields(map[string]interface{}{
+		"count":         len(customers),
+		"customer_type": customerType,
+		"active_only":   activeOnly,
+	}).Info("Customers fetched successfully")
 
 	cc.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"data": customers,

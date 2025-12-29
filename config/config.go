@@ -20,6 +20,8 @@ type Config struct {
 	SecretKey      string
 	AccessKey      string
 	BucketName     string
+	LogLevel       string
+	LogFormat      string
 }
 
 func Load() (*Config, error) {
@@ -35,6 +37,8 @@ func Load() (*Config, error) {
 		AccessKey:      getEnv("SPACE_ACCESS_KEY", ""),  // Your Spaces access key
 		SecretKey:      getEnv("SPACE_SECRET_KEY", ""),  // Your Spaces secret key
 		BucketName:     getEnv("SPACE_BUCKET", ""),      // Your Space name, e.g., "myapp-images"
+		LogLevel:       getEnv("LOG_LEVEL", "INFO"),     // DEBUG, INFO, WARN, ERROR, FATAL
+		LogFormat:      getEnv("LOG_FORMAT", "text"),    // text or json
 	}
 
 	// Build database URL

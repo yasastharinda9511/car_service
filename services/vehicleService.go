@@ -5,6 +5,7 @@ import (
 	"car_service/dto/response"
 	"car_service/entity"
 	"car_service/filters"
+	"car_service/logger"
 	"car_service/repository"
 	"context"
 	"database/sql"
@@ -48,16 +49,34 @@ func NewVehicleService(db *sql.DB) *VehicleService {
 }
 
 func (s *VehicleService) GetAllVehicles(ctx context.Context, limit int, offset int, filter filters.Filter) (*response.VehiclesResponse, error) {
+	logger.WithFields(map[string]interface{}{
+		"limit":  limit,
+		"offset": offset,
+	}).Debug("Fetching all vehicles")
 
 	vehicles, err := s.vehicleRepository.GetAllVehicles(ctx, s.db, limit, offset, filter)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"limit":  limit,
+			"offset": offset,
+			"error":  err.Error(),
+		}).Error("Failed to fetch vehicles")
 		return nil, err
 	}
 
 	vehicleCount, err := s.vehicleRepository.GetAllVehicleCount(ctx, s.db, filter)
 	if err != nil {
+		logger.WithField("error", err.Error()).Error("Failed to get vehicle count")
 		return nil, err
 	}
+
+	logger.WithFields(map[string]interface{}{
+		"count":  len(vehicles),
+		"total":  vehicleCount,
+		"limit":  limit,
+		"offset": offset,
+	}).Info("Successfully fetched vehicles")
+
 	var vehiclesResponse response.VehiclesResponse
 	vehiclesResponse.Vehicles = vehicles
 	vehiclesResponse.Meta.Limit = limit
@@ -75,41 +94,81 @@ func (s *VehicleService) GetAllVehicleCount(ctx context.Context, filter filters.
 }
 
 func (s *VehicleService) GetVehicleByID(ctx context.Context, id int64) (*entity.VehicleComplete, error) {
-	vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, id)
+	logger.WithField("vehicle_id", id).Debug("Fetching vehicle by ID")
 
+	vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, id)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": id,
+			"error":      err.Error(),
+		}).Error("Failed to fetch vehicle")
 		return nil, err
 	}
 
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id": id,
+		"code":       vehicle.Code,
+	}).Debug("Fetching vehicle related data")
+
 	shipping, err := s.vehicleShippingRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": id,
+			"error":      err.Error(),
+		}).Error("Failed to fetch shipping data")
 		return nil, err
 	}
 
 	purchase, err := s.vehiclePurchaseRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": id,
+			"error":      err.Error(),
+		}).Error("Failed to fetch purchase data")
 		return nil, err
 	}
 
 	finance, err := s.vehicleFinancialsRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": id,
+			"error":      err.Error(),
+		}).Error("Failed to fetch financial data")
 		return nil, err
 	}
 
 	sales, err := s.vehicleSalesRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": id,
+			"error":      err.Error(),
+		}).Error("Failed to fetch sales data")
 		return nil, err
 	}
 
 	images, err := s.vehicleIMageRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": id,
+			"error":      err.Error(),
+		}).Error("Failed to fetch vehicle images")
 		return nil, err
 	}
 
 	documents, err := s.vehicleDocumentRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": id,
+			"error":      err.Error(),
+		}).Error("Failed to fetch vehicle documents")
 		return nil, err
 	}
+
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id":     id,
+		"image_count":    len(images),
+		"document_count": len(documents),
+	}).Info("Successfully fetched complete vehicle data")
 
 	var vehicleComplete entity.VehicleComplete
 
@@ -139,51 +198,94 @@ func (s *VehicleService) InsertVehicleImage(ctx context.Context, vehicleImage []
 }
 
 func (s *VehicleService) CreateVehicle(ctx context.Context, req request.CreateVehicleRequest) (*entity.Vehicle, error) {
+	logger.WithFields(map[string]interface{}{
+		"code":  req.Code,
+		"make":  req.Make,
+		"model": req.Model,
+	}).Info("Creating new vehicle")
+
 	// Start transaction
 	tx, err := s.db.Begin()
 	if err != nil {
+		logger.WithField("error", err.Error()).Error("Failed to begin transaction for vehicle creation")
 		return nil, err
 	}
 	defer tx.Rollback() // Will be ignored if tx is committed
 
+	logger.Debug("Inserting vehicle record")
 	vehicleID, err := s.vehicleRepository.Insert(ctx, tx, req)
-
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"code":  req.Code,
+			"error": err.Error(),
+		}).Error("Failed to insert vehicle")
 		return nil, err
 	}
 
+	logger.WithField("vehicle_id", vehicleID).Debug("Inserting default shipping record")
 	err = s.vehicleShippingRepository.InsertDefault(ctx, tx, vehicleID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to insert default shipping record")
 		return nil, err
 	}
 
-	// Insert default financial record with zero costs
+	logger.WithField("vehicle_id", vehicleID).Debug("Inserting default financial record")
 	err = s.vehicleFinancialsRepository.InsertDefault(ctx, tx, vehicleID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to insert default financial record")
 		return nil, err
 	}
 
+	logger.WithField("vehicle_id", vehicleID).Debug("Inserting default sales record")
 	err = s.vehicleSalesRepository.InsertDefault(ctx, tx, vehicleID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to insert default sales record")
 		return nil, err
 	}
 
-	// Insert default purchase record (can be updated later)
+	logger.WithField("vehicle_id", vehicleID).Debug("Inserting default purchase record")
 	err = s.vehiclePurchaseRepository.InsertDefault(ctx, tx, vehicleID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to insert default purchase record")
 		return nil, err
 	}
 
 	// Commit transaction
+	logger.WithField("vehicle_id", vehicleID).Debug("Committing transaction")
 	err = tx.Commit()
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to commit transaction for vehicle creation")
 		return nil, err
 	}
 
 	vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, vehicleID)
 	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to fetch created vehicle")
 		return nil, err
 	}
+
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id": vehicleID,
+		"code":       vehicle.Code,
+	}).Info("Vehicle created successfully")
 
 	return vehicle, nil
 }
@@ -503,179 +605,6 @@ func (s *VehicleService) GetVehicleDocumentByID(ctx context.Context, id int64) (
 func (s *VehicleService) DeleteVehicle(ctx context.Context, vehicleID int64) error {
 	return s.vehicleRepository.DeleteVehicle(ctx, s.db, vehicleID)
 }
-
-//
-//func (s *VehicleService) CreateVehicleMake(vehicleMake request.CreateVehicleMake) (*entity.VehicleMake, error) {
-//	query := `
-//        INSERT INTO vehicle_makes (make_name, country_origin, is_active)
-//        VALUES ($1, $2, $3)
-//        RETURNING id, make_name, country_origin, is_active, created_at
-//    `
-//
-//	var make entity.VehicleMake
-//	err := s.db.Db.QueryRow(query, vehicleMake.MakeName, vehicleMake.CountryOrigin, vehicleMake.IsActive).Scan(
-//		&make.ID, &make.MakeName, &make.CountryOrigin, &make.IsActive, &make.CreatedAt,
-//	)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return &make, nil
-//}
-//
-//func (s *VehicleService) GetAllVehicleMakes(activeOnly bool) ([]entity.VehicleMake, error) {
-//	query := `SELECT id, make_name, country_origin, is_active, created_at FROM vehicle_makes`
-//	if activeOnly {
-//		query += ` WHERE is_active = true`
-//	}
-//	query += ` ORDER BY make_name`
-//
-//	rows, err := s.db.Db.Query(query)
-//	if err != nil {
-//		return nil, err
-//	}
-//	defer rows.Close()
-//
-//	var makes []entity.VehicleMake
-//	for rows.Next() {
-//		var make entity.VehicleMake
-//		err := rows.Scan(&make.ID, &make.MakeName, &make.CountryOrigin, &make.IsActive, &make.CreatedAt)
-//		if err != nil {
-//			return nil, err
-//		}
-//		makes = append(makes, make)
-//	}
-//
-//	return makes, nil
-//}
-//
-//func (s *VehicleService) UpdateVehicleMake(id int, makeName, countryOrigin *string, isActive *bool) error {
-//	query := `
-//        UPDATE vehicle_makes
-//        SET make_name = COALESCE($2, make_name),
-//            country_origin = COALESCE($3, country_origin),
-//            is_active = COALESCE($4, is_active)
-//        WHERE id = $1
-//    `
-//
-//	_, err := s.db.Db.Exec(query, id, makeName, countryOrigin, isActive)
-//	return err
-//}
-//
-//// Vehicle Model Service Methods
-//func (s *VehicleService) CreateVehicleModel(req request.CreateVehicleModel) (*entity.VehicleModel, error) {
-//
-//	query := `
-//        INSERT INTO vehicle_models (make_id, model_name, body_type, fuel_type, transmission_type, engine_size_cc, is_active)
-//        VALUES ($1, $2, $3, $4, $5, $6, $7)
-//        RETURNING id, make_id, model_name, body_type, fuel_type, transmission_type, engine_size_cc, is_active, created_at
-//    `
-//
-//	var model entity.VehicleModel
-//	err := s.db.Db.QueryRow(query, req.MakeID, req.ModelName, req.BodyType, req.FuelType, req.TransmissionType, req.EngineSizeCC, req.IsActive).Scan(
-//		&model.ID, &model.MakeID, &model.ModelName, &model.BodyType, &model.FuelType,
-//		&model.TransmissionType, &model.EngineSizeCC, &model.IsActive, &model.CreatedAt,
-//	)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return &model, nil
-//}
-//
-//func (s *VehicleService) GetVehicleModels(makeID *int, activeOnly bool) ([]entity.VehicleModelWithMake, error) {
-//	query := `
-//        SELECT vm.id, vm.make_id, vm.model_name, vm.body_type, vm.fuel_type,
-//               vm.transmission_type, vm.engine_size_cc, vm.is_active, vm.created_at,
-//               vma.make_name
-//        FROM vehicle_models vm
-//        JOIN vehicle_makes vma ON vm.make_id = vma.id
-//    `
-//
-//	var args []interface{}
-//	var conditions []string
-//
-//	if makeID != nil {
-//		conditions = append(conditions, "vm.make_id = $1")
-//		args = append(args, *makeID)
-//	}
-//
-//	if activeOnly {
-//		if len(args) > 0 {
-//			conditions = append(conditions, "vm.is_active = $2")
-//		} else {
-//			conditions = append(conditions, "vm.is_active = $1")
-//		}
-//		args = append(args, true)
-//	}
-//
-//	if len(conditions) > 0 {
-//		query += " WHERE " + strings.Join(conditions, " AND ")
-//	}
-//
-//	query += " ORDER BY vma.make_name, vm.model_name"
-//
-//	rows, err := s.db.Db.Query(query, args...)
-//	if err != nil {
-//		return nil, err
-//	}
-//	defer rows.Close()
-//
-//	var models []entity.VehicleModelWithMake
-//	for rows.Next() {
-//		var model entity.VehicleModelWithMake
-//		err := rows.Scan(&model.ID, &model.MakeID, &model.ModelName, &model.BodyType,
-//			&model.FuelType, &model.TransmissionType, &model.EngineSizeCC, &model.IsActive,
-//			&model.CreatedAt, &model.MakeName)
-//		if err != nil {
-//			return nil, err
-//		}
-//		models = append(models, model)
-//	}
-//
-//	return models, nil
-//}
-//
-//func (s *VehicleService) GetVehicleModelByID(id int) (*entity.VehicleModelWithMake, error) {
-//	query := `
-//        SELECT vm.id, vm.make_id, vm.model_name, vm.body_type, vm.fuel_type,
-//               vm.transmission_type, vm.engine_size_cc, vm.is_active, vm.created_at,
-//               vma.make_name
-//        FROM vehicle_models vm
-//        JOIN vehicle_makes vma ON vm.make_id = vma.id
-//        WHERE vm.id = $1
-//    `
-//
-//	var model entity.VehicleModelWithMake
-//	err := s.db.Db.QueryRow(query, id).Scan(
-//		&model.ID, &model.MakeID, &model.ModelName, &model.BodyType,
-//		&model.FuelType, &model.TransmissionType, &model.EngineSizeCC,
-//		&model.IsActive, &model.CreatedAt, &model.MakeName,
-//	)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return &model, nil
-//}
-//
-//func (s *VehicleService) UpdateVehicleModel(id int, modelName, bodyType, fuelType,
-//	transmissionType *string, engineSizeCC *int, isActive *bool) error {
-//
-//	query := `
-//        UPDATE vehicle_models
-//        SET model_name = COALESCE($2, model_name),
-//            body_type = COALESCE($3, body_type),
-//            fuel_type = COALESCE($4, fuel_type),
-//            transmission_type = COALESCE($5, transmission_type),
-//            engine_size_cc = COALESCE($6, engine_size_cc),
-//            is_active = COALESCE($7, is_active)
-//        WHERE id = $1
-//    `
-//
-//	_, err := s.db.Db.Exec(query, id, modelName, bodyType, fuelType, transmissionType, engineSizeCC, isActive)
-//	return err
-//}
 
 // GetPurchaseHistory retrieves purchase change history for a vehicle
 func (s *VehicleService) GetPurchaseHistory(ctx context.Context, vehicleID int64) ([]entity.VehiclePurchaseHistoryWithDetails, error) {
