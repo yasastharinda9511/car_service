@@ -4,7 +4,7 @@ import (
 	"car_service/dto/request"
 	"car_service/internal/constants"
 	"car_service/middleware"
-	"car_service/repository"
+	"car_service/services"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -15,16 +15,16 @@ import (
 )
 
 type SupplierController struct {
-	supplierRepository *repository.SupplierRepository
-	router             *mux.Router
-	introspectURL      string
+	supplierService *services.SupplierService
+	router          *mux.Router
+	introspectURL   string
 }
 
-func NewSupplierController(router *mux.Router, introspectURL string) *SupplierController {
+func NewSupplierController(router *mux.Router, introspectURL string, supplierService *services.SupplierService) *SupplierController {
 	return &SupplierController{
-		supplierRepository: repository.NewSupplierRepository(),
-		router:             router,
-		introspectURL:      introspectURL,
+		supplierService: supplierService,
+		router:          router,
+		introspectURL:   introspectURL,
 	}
 }
 
@@ -84,34 +84,14 @@ func (sc *SupplierController) createSupplier(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Validation
-	if req.SupplierName == "" {
-		sc.writeError(w, http.StatusBadRequest, "Supplier name is required")
-		return
-	}
-
-	if req.SupplierType == "" {
-		sc.writeError(w, http.StatusBadRequest, "Supplier type is required")
-		return
-	}
-
-	// Validate supplier type enum
-	validTypes := map[string]bool{"AUCTION": true, "DEALER": true, "INDIVIDUAL": true}
-	if !validTypes[req.SupplierType] {
-		sc.writeError(w, http.StatusBadRequest, "Invalid supplier type. Must be AUCTION, DEALER, or INDIVIDUAL")
-		return
-	}
-
-	// Set default for is_active
-	if req.IsActive == nil {
-		defaultActive := true
-		req.IsActive = &defaultActive
-	}
-
-	supplier, err := sc.supplierRepository.CreateSupplier(r.Context(), db, req)
+	supplier, err := sc.supplierService.CreateSupplier(r.Context(), req)
 	if err != nil {
-		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-			sc.writeError(w, http.StatusConflict, "Supplier with this information already exists")
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "already exists") {
+			sc.writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "invalid") {
+			sc.writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		sc.writeError(w, http.StatusInternalServerError, err.Error())
@@ -127,25 +107,47 @@ func (sc *SupplierController) createSupplier(w http.ResponseWriter, r *http.Requ
 func (sc *SupplierController) getSuppliers(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	supplierType := r.URL.Query().Get("supplier_type")
 	activeOnly := r.URL.Query().Get("active_only") == "true"
+	searchTerm := r.URL.Query().Get("q")
+
+	// Parse pagination parameters
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit < 1 {
+		limit = 10 // Default limit
+	}
+	offset := (page - 1) * limit
 
 	var supplierTypePtr *string
 	if supplierType != "" {
 		supplierTypePtr = &supplierType
 	}
 
-	suppliers, err := sc.supplierRepository.GetAllSuppliers(r.Context(), db, supplierTypePtr, activeOnly)
+	suppliers, total, err := sc.supplierService.GetAllSuppliers(r.Context(), limit, offset, supplierTypePtr, activeOnly, searchTerm)
 	if err != nil {
 		sc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	meta := map[string]interface{}{
+		"total":         total,
+		"count":         len(suppliers),
+		"page":          page,
+		"limit":         limit,
+		"supplier_type": supplierType,
+		"active_only":   activeOnly,
+	}
+
+	// Add search_term to meta if it was provided
+	if searchTerm != "" {
+		meta["search_term"] = searchTerm
+	}
+
 	sc.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"data": suppliers,
-		"meta": map[string]interface{}{
-			"total":         len(suppliers),
-			"supplier_type": supplierType,
-			"active_only":   activeOnly,
-		},
+		"meta": meta,
 	})
 }
 
@@ -157,7 +159,7 @@ func (sc *SupplierController) getSupplierByID(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	supplier, err := sc.supplierRepository.GetSupplierByID(r.Context(), db, id)
+	supplier, err := sc.supplierService.GetSupplierByID(r.Context(), id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			sc.writeError(w, http.StatusNotFound, "Supplier not found")
@@ -185,17 +187,12 @@ func (sc *SupplierController) updateSupplier(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Validate supplier type if provided
-	if req.SupplierType != nil && *req.SupplierType != "" {
-		validTypes := map[string]bool{"AUCTION": true, "DEALER": true, "INDIVIDUAL": true}
-		if !validTypes[*req.SupplierType] {
-			sc.writeError(w, http.StatusBadRequest, "Invalid supplier type. Must be AUCTION, DEALER, or INDIVIDUAL")
+	err = sc.supplierService.UpdateSupplier(r.Context(), id, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "invalid") {
+			sc.writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-	}
-
-	err = sc.supplierRepository.UpdateSupplier(r.Context(), db, id, req)
-	if err != nil {
 		sc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -211,7 +208,7 @@ func (sc *SupplierController) deleteSupplier(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err = sc.supplierRepository.DeleteSupplier(r.Context(), db, id)
+	err = sc.supplierService.DeleteSupplier(r.Context(), id)
 	if err != nil {
 		sc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -222,13 +219,13 @@ func (sc *SupplierController) deleteSupplier(w http.ResponseWriter, r *http.Requ
 
 func (sc *SupplierController) searchSuppliers(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	searchTerm := r.URL.Query().Get("q")
-	if searchTerm == "" {
-		sc.writeError(w, http.StatusBadRequest, "Search term 'q' is required")
-		return
-	}
 
-	suppliers, err := sc.supplierRepository.SearchSuppliers(r.Context(), db, searchTerm)
+	suppliers, err := sc.supplierService.SearchSuppliers(r.Context(), searchTerm)
 	if err != nil {
+		if strings.Contains(err.Error(), "required") {
+			sc.writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		sc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

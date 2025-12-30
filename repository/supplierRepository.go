@@ -46,8 +46,8 @@ func (r *SupplierRepository) CreateSupplier(ctx context.Context, exec database.E
 	return &supplier, nil
 }
 
-// GetAllSuppliers retrieves all suppliers with optional filtering
-func (r *SupplierRepository) GetAllSuppliers(ctx context.Context, exec database.Executor, supplierType *string, activeOnly bool) ([]entity.Supplier, error) {
+// GetAllSuppliers retrieves all suppliers with optional filtering, search, and pagination
+func (r *SupplierRepository) GetAllSuppliers(ctx context.Context, exec database.Executor, limit, offset int, supplierType *string, activeOnly bool, searchTerm string) ([]entity.Supplier, error) {
 	query := `
         SELECT id, supplier_name, supplier_title, contact_number, email, address,
                other_contacts, supplier_type, country, is_active, created_at, updated_at
@@ -57,6 +57,14 @@ func (r *SupplierRepository) GetAllSuppliers(ctx context.Context, exec database.
 	var conditions []string
 	var args []interface{}
 	argCount := 1
+
+	// Add search condition if search term is provided
+	if searchTerm != "" {
+		searchPattern := "%" + searchTerm + "%"
+		conditions = append(conditions, fmt.Sprintf("(LOWER(supplier_name) LIKE LOWER($%d) OR LOWER(contact_number) LIKE LOWER($%d) OR LOWER(email) LIKE LOWER($%d) OR LOWER(supplier_type::text) LIKE LOWER($%d))", argCount, argCount, argCount, argCount))
+		args = append(args, searchPattern)
+		argCount++
+	}
 
 	if supplierType != nil && *supplierType != "" {
 		conditions = append(conditions, fmt.Sprintf("supplier_type = $%d", argCount))
@@ -75,6 +83,10 @@ func (r *SupplierRepository) GetAllSuppliers(ctx context.Context, exec database.
 	}
 
 	query += " ORDER BY supplier_name"
+
+	// Add pagination
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCount, argCount+1)
+	args = append(args, limit, offset)
 
 	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -102,6 +114,47 @@ func (r *SupplierRepository) GetAllSuppliers(ctx context.Context, exec database.
 	}
 
 	return suppliers, nil
+}
+
+// GetAllSuppliersCount retrieves the total count of suppliers with optional filtering and search
+func (r *SupplierRepository) GetAllSuppliersCount(ctx context.Context, exec database.Executor, supplierType *string, activeOnly bool, searchTerm string) (int64, error) {
+	var count int64
+	query := `SELECT COUNT(*) FROM cars.suppliers`
+
+	var conditions []string
+	var args []interface{}
+	argCount := 1
+
+	// Add search condition if search term is provided
+	if searchTerm != "" {
+		searchPattern := "%" + searchTerm + "%"
+		conditions = append(conditions, fmt.Sprintf("(LOWER(supplier_name) LIKE LOWER($%d) OR LOWER(contact_number) LIKE LOWER($%d) OR LOWER(email) LIKE LOWER($%d) OR LOWER(supplier_type::text) LIKE LOWER($%d))", argCount, argCount, argCount, argCount))
+		args = append(args, searchPattern)
+		argCount++
+	}
+
+	if supplierType != nil && *supplierType != "" {
+		conditions = append(conditions, fmt.Sprintf("supplier_type = $%d", argCount))
+		args = append(args, *supplierType)
+		argCount++
+	}
+
+	if activeOnly {
+		conditions = append(conditions, fmt.Sprintf("is_active = $%d", argCount))
+		args = append(args, true)
+		argCount++
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	err := exec.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
 // GetSupplierByID retrieves a supplier by ID
