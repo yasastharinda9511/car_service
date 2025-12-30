@@ -198,7 +198,7 @@ func (s *VehicleService) InsertVehicleImage(ctx context.Context, vehicleImage []
 	return vehicleImages, nil
 }
 
-func (s *VehicleService) CreateVehicle(ctx context.Context, req request.CreateVehicleRequest) (*entity.Vehicle, error) {
+func (s *VehicleService) CreateVehicle(ctx context.Context, req request.CreateVehicleRequest, authHeader string) (*entity.Vehicle, error) {
 	logger.WithFields(map[string]interface{}{
 		"code":  req.Code,
 		"make":  req.Make,
@@ -287,6 +287,32 @@ func (s *VehicleService) CreateVehicle(ctx context.Context, req request.CreateVe
 		"vehicle_id": vehicleID,
 		"code":       vehicle.Code,
 	}).Info("Vehicle created successfully")
+
+	// Extract user ID from context
+	userID, _ := middleware.GetUserIDFromContext(ctx)
+
+	// Create notification handler
+	vehicleCreatedHandler := notificationHandlers.NewVehicleCreatedNotificationHandler(
+		vehicle,
+		userID,
+	)
+
+	// Send notification asynchronously
+	go func() {
+		if err := s.notificationService.SendNotification(vehicleCreatedHandler, authHeader); err != nil {
+			logger.WithFields(map[string]interface{}{
+				"vehicle_id": vehicleID,
+				"code":       vehicle.Code,
+				"error":      err.Error(),
+			}).Error("Failed to send vehicle creation notification")
+		}
+	}()
+
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id":        vehicleID,
+		"code":              vehicle.Code,
+		"notification_type": "vehicle_created",
+	}).Info("Vehicle creation notification triggered")
 
 	return vehicle, nil
 }

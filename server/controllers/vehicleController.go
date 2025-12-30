@@ -150,7 +150,10 @@ func (vc *VehicleController) createVehicle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	vehicle, err := vc.vehicleService.CreateVehicle(r.Context(), req)
+	// Extract authorization header
+	authHeader := r.Header.Get("Authorization")
+
+	vehicle, err := vc.vehicleService.CreateVehicle(r.Context(), req, authHeader)
 	if err != nil {
 		vc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
