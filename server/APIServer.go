@@ -30,7 +30,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	notificationService := services.NewNotificationService(cfg.NotificationServiceURL)
 	vehicleService := services.NewVehicleService(db, notificationService)
 	customerService := services.NewCustomerService(db, notificationService)
-	supplierService := services.NewSupplierService(db)
+	supplierService := services.NewSupplierService(db, notificationService)
 	analyticService := services.NewAnalyticsService(db)
 
 	// Initialize S3 service if enabled

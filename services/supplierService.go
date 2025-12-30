@@ -4,6 +4,8 @@ import (
 	"car_service/dto/request"
 	"car_service/entity"
 	"car_service/logger"
+	"car_service/middleware"
+	"car_service/notificationHandlers"
 	"car_service/repository"
 	"context"
 	"database/sql"
@@ -12,19 +14,21 @@ import (
 )
 
 type SupplierService struct {
-	db                 *sql.DB
-	supplierRepository *repository.SupplierRepository
+	db                  *sql.DB
+	supplierRepository  *repository.SupplierRepository
+	notificationService *NotificationService
 }
 
-func NewSupplierService(db *sql.DB) *SupplierService {
+func NewSupplierService(db *sql.DB, notificationService *NotificationService) *SupplierService {
 	return &SupplierService{
-		db:                 db,
-		supplierRepository: repository.NewSupplierRepository(),
+		db:                  db,
+		supplierRepository:  repository.NewSupplierRepository(),
+		notificationService: notificationService,
 	}
 }
 
-// CreateSupplier creates a new supplier with validation
-func (s *SupplierService) CreateSupplier(ctx context.Context, req request.CreateSupplierRequest) (*entity.Supplier, error) {
+// CreateSupplier creates a new supplier with validation and sends a notification
+func (s *SupplierService) CreateSupplier(ctx context.Context, req request.CreateSupplierRequest, authHeader string) (*entity.Supplier, error) {
 	logger.WithFields(map[string]interface{}{
 		"supplier_name": req.SupplierName,
 		"supplier_type": req.SupplierType,
@@ -79,6 +83,32 @@ func (s *SupplierService) CreateSupplier(ctx context.Context, req request.Create
 		"supplier_id":   supplier.ID,
 		"supplier_name": supplier.SupplierName,
 	}).Info("Supplier created successfully")
+
+	// Extract user ID from context
+	userID, _ := middleware.GetUserIDFromContext(ctx)
+
+	// Create notification handler
+	supplierCreatedHandler := notificationHandlers.NewSupplierCreatedNotificationHandler(
+		supplier,
+		userID,
+	)
+
+	// Send notification asynchronously
+	go func() {
+		if err := s.notificationService.SendNotification(supplierCreatedHandler, authHeader); err != nil {
+			logger.WithFields(map[string]interface{}{
+				"supplier_id":   supplier.ID,
+				"supplier_name": supplier.SupplierName,
+				"error":         err.Error(),
+			}).Error("Failed to send supplier creation notification")
+		}
+	}()
+
+	logger.WithFields(map[string]interface{}{
+		"supplier_id":       supplier.ID,
+		"supplier_name":     supplier.SupplierName,
+		"notification_type": "supplier_created",
+	}).Info("Supplier creation notification triggered")
 
 	return supplier, nil
 }

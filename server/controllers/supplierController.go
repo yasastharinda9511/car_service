@@ -84,7 +84,10 @@ func (sc *SupplierController) createSupplier(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	supplier, err := sc.supplierService.CreateSupplier(r.Context(), req)
+	// Get authorization header for notification service
+	authHeader := r.Header.Get("Authorization")
+
+	supplier, err := sc.supplierService.CreateSupplier(r.Context(), req, authHeader)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "already exists") {
 			sc.writeError(w, http.StatusConflict, err.Error())
