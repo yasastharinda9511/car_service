@@ -40,30 +40,28 @@ func (h *ShippingStatusNotificationHandler) BuildNotificationRequest() *request.
 		"old_status":   h.OldStatus,
 		"new_status":   h.NewStatus,
 		"message":      h.buildMessage(),
+		"make":         h.Vehicle.Make,
+		"model":        h.Vehicle.Model,
+		"year":         h.Vehicle.YearOfManufacture,
+		"chassis_id":   h.Vehicle.ChassisID,
+		"color":        h.Vehicle.Color,
+		"mileage":      h.Vehicle.MileageKm,
 	}
 
 	// Add customer information if available
 	if h.Customer != nil && h.Customer.Email != nil && *h.Customer.Email != "" {
 		payload["email"] = *h.Customer.Email
 		payload["customer_name"] = h.Customer.CustomerName
-	}
-
-	// Add vehicle details
-	payload["vehicle_details"] = map[string]interface{}{
-		"make":       h.Vehicle.Make,
-		"model":      h.Vehicle.Model,
-		"year":       h.Vehicle.YearOfManufacture,
-		"chassis_id": h.Vehicle.ChassisID,
-		"color":      h.Vehicle.Color,
-		"mileage":    h.Vehicle.MileageKm,
+	} else {
+		payload["email"] = ""
+		payload["customer_name"] = ""
 	}
 
 	// Build metadata
 	metadata := map[string]interface{}{
-		"user_id":     h.UserID,
-		"service":     "car-service",
-		"event":       "shipping_status_update",
-		"customer_id": h.Customer.ID,
+		"user_id": h.UserID,
+		"service": "car-service",
+		"event":   "shipping_status_update",
 	}
 
 	// Determine priority based on status
