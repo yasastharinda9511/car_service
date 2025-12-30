@@ -29,6 +29,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	logger.Debug("Creating service instances")
 	notificationService := services.NewNotificationService(cfg.NotificationServiceURL)
 	vehicleService := services.NewVehicleService(db, notificationService)
+	customerService := services.NewCustomerService(db, notificationService)
 	analyticService := services.NewAnalyticsService(db)
 
 	// Initialize S3 service if enabled
@@ -63,7 +64,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	analyticController := controllers.NewAnalyticController(analyticService, server.router)
 	vehicleMakeController := controllers.NewVehicleMakeController(server.router, cfg.IntrospectURL)
 	vehicleModelController := controllers.NewVehicleModelController(server.router, cfg.IntrospectURL)
-	customerController := controllers.NewCustomerController(server.router, cfg.IntrospectURL)
+	customerController := controllers.NewCustomerController(server.router, cfg.IntrospectURL, customerService)
 	supplierController := controllers.NewSupplierController(server.router, cfg.IntrospectURL)
 
 	logger.Debug("Setting up controller routes")
