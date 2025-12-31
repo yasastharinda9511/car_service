@@ -564,8 +564,61 @@ func (s *VehicleService) GetVehicleDocumentByID(ctx context.Context, id int64) (
 }
 
 // DeleteVehicle deletes a vehicle by ID
-func (s *VehicleService) DeleteVehicle(ctx context.Context, vehicleID int64) error {
-	return s.vehicleRepository.DeleteVehicle(ctx, s.db, vehicleID)
+func (s *VehicleService) DeleteVehicle(ctx context.Context, vehicleID int64, authHeader string) error {
+	logger.WithField("vehicle_id", vehicleID).Info("Deleting vehicle")
+
+	// Fetch vehicle details before deletion for notification
+	vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, vehicleID)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to fetch vehicle before deletion")
+		return err
+	}
+
+	// Delete the vehicle
+	err = s.vehicleRepository.DeleteVehicle(ctx, s.db, vehicleID)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to delete vehicle")
+		return err
+	}
+
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id": vehicleID,
+		"code":       vehicle.Code,
+	}).Info("Vehicle deleted successfully")
+
+	// Extract user ID from context
+	userID, _ := middleware.GetUserIDFromContext(ctx)
+
+	// Create notification handler
+	vehicleDeletedHandler := notificationHandlers.NewVehicleDeletedNotificationHandler(
+		vehicle,
+		userID,
+	)
+
+	// Send notification asynchronously
+	go func() {
+		if err := s.notificationService.SendNotification(vehicleDeletedHandler, authHeader); err != nil {
+			logger.WithFields(map[string]interface{}{
+				"vehicle_id": vehicleID,
+				"code":       vehicle.Code,
+				"error":      err.Error(),
+			}).Error("Failed to send vehicle deletion notification")
+		}
+	}()
+
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id":        vehicleID,
+		"code":              vehicle.Code,
+		"notification_type": "vehicle_deleted",
+	}).Info("Vehicle deletion notification triggered")
+
+	return nil
 }
 
 // GetPurchaseHistory retrieves purchase change history for a vehicle

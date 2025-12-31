@@ -657,7 +657,10 @@ func (vc *VehicleController) deleteVehicle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = vc.vehicleService.DeleteVehicle(r.Context(), vehicleID)
+	// Extract authorization header from request
+	authHeader := r.Header.Get("Authorization")
+
+	err = vc.vehicleService.DeleteVehicle(r.Context(), vehicleID, authHeader)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			vc.writeError(w, http.StatusNotFound, "Vehicle not found")
