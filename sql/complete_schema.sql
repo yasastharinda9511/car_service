@@ -48,7 +48,8 @@ CREATE TABLE cars.vehicle_makes (
     make_name VARCHAR(50) UNIQUE NOT NULL,
     country_origin VARCHAR(50) DEFAULT 'Japan',
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    logo_url VARCHAR(500)
 );
 
 -- Vehicle Models Reference Table
@@ -690,17 +691,17 @@ GROUP BY vs.shipping_status, vsl.sale_status;
 -- =====================================================
 
 -- Insert common vehicle makes
-INSERT INTO cars.vehicle_makes (make_name, country_origin) VALUES
-    ('Toyota', 'Japan'),
-    ('Honda', 'Japan'),
-    ('Nissan', 'Japan'),
-    ('Mazda', 'Japan'),
-    ('Suzuki', 'Japan'),
-    ('Mitsubishi', 'Japan'),
-    ('Subaru', 'Japan'),
-    ('Lexus', 'Japan'),
-    ('Infiniti', 'Japan'),
-    ('Acura', 'Japan');
+INSERT INTO cars.vehicle_makes (make_name, country_origin, log_url) VALUES
+    ('Toyota', 'Japan', ''),
+    ('Honda', 'Japan', ''),
+    ('Nissan', 'Japan', ''),
+    ('Mazda', 'Japan', ''),
+    ('Suzuki', 'Japan', ''),
+    ('Mitsubishi', 'Japan', ''),
+    ('Subaru', 'Japan', ''),
+    ('Lexus', 'Japan', ''),
+    ('Infiniti', 'Japan', ''),
+    ('Acura', 'Japan', '');
 
 -- Insert common Toyota models
 INSERT INTO cars.vehicle_models (make_id, model_name, body_type) VALUES

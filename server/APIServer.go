@@ -63,7 +63,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	logger.Debug("Initializing controllers")
 	vehicleController := controllers.NewVehicleController(vehicleService, s3Service, server.router, cfg.IntrospectURL)
 	analyticController := controllers.NewAnalyticController(analyticService, server.router)
-	vehicleMakeController := controllers.NewVehicleMakeController(server.router, cfg.IntrospectURL)
+	vehicleMakeController := controllers.NewVehicleMakeController(server.router, cfg.IntrospectURL, s3Service)
 	vehicleModelController := controllers.NewVehicleModelController(server.router, cfg.IntrospectURL)
 	customerController := controllers.NewCustomerController(server.router, cfg.IntrospectURL, customerService)
 	supplierController := controllers.NewSupplierController(server.router, cfg.IntrospectURL, supplierService)

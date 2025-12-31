@@ -15,14 +15,14 @@ func NewVehicleMakeRepository() *VehicleMakeRepository {
 
 func (r *VehicleMakeRepository) CreateVehicleMake(ctx context.Context, exec database.Executor, req request.CreateVehicleMake) (*entity.VehicleMake, error) {
 	query := `
-        INSERT INTO cars.vehicle_makes (make_name, country_origin, is_active)
-        VALUES ($1, $2, $3)
-        RETURNING id, make_name, country_origin, is_active, created_at
+        INSERT INTO cars.vehicle_makes (make_name, country_origin, logo_url, is_active)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, make_name, country_origin, logo_url, is_active, created_at
     `
 
 	var make entity.VehicleMake
-	err := exec.QueryRowContext(ctx, query, req.MakeName, req.CountryOrigin, req.IsActive).Scan(
-		&make.ID, &make.MakeName, &make.CountryOrigin, &make.IsActive, &make.CreatedAt,
+	err := exec.QueryRowContext(ctx, query, req.MakeName, req.CountryOrigin, req.LogoURL, req.IsActive).Scan(
+		&make.ID, &make.MakeName, &make.CountryOrigin, &make.LogoURL, &make.IsActive, &make.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (r *VehicleMakeRepository) CreateVehicleMake(ctx context.Context, exec data
 }
 
 func (r *VehicleMakeRepository) GetAllVehicleMakes(ctx context.Context, exec database.Executor, activeOnly bool) ([]entity.VehicleMake, error) {
-	query := `SELECT id, make_name, country_origin, is_active, created_at FROM cars.vehicle_makes`
+	query := `SELECT id, make_name, country_origin, logo_url, is_active, created_at FROM cars.vehicle_makes`
 	if activeOnly {
 		query += ` WHERE is_active = true`
 	}
@@ -47,7 +47,7 @@ func (r *VehicleMakeRepository) GetAllVehicleMakes(ctx context.Context, exec dat
 	var makes []entity.VehicleMake
 	for rows.Next() {
 		var make entity.VehicleMake
-		err := rows.Scan(&make.ID, &make.MakeName, &make.CountryOrigin, &make.IsActive, &make.CreatedAt)
+		err := rows.Scan(&make.ID, &make.MakeName, &make.CountryOrigin, &make.LogoURL, &make.IsActive, &make.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -71,5 +71,27 @@ func (r *VehicleMakeRepository) UpdateVehicleMake(ctx context.Context, exec data
     `
 
 	_, err := exec.ExecContext(ctx, query, id, makeName, countryOrigin, isActive)
+	return err
+}
+
+// GetVehicleMakeByID retrieves a vehicle make by its ID
+func (r *VehicleMakeRepository) GetVehicleMakeByID(ctx context.Context, exec database.Executor, id int) (*entity.VehicleMake, error) {
+	query := `SELECT id, make_name, country_origin, logo_url, is_active, created_at FROM cars.vehicle_makes WHERE id = $1`
+
+	var make entity.VehicleMake
+	err := exec.QueryRowContext(ctx, query, id).Scan(
+		&make.ID, &make.MakeName, &make.CountryOrigin, &make.LogoURL, &make.IsActive, &make.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &make, nil
+}
+
+// UpdateMakeLogo updates only the logo_url field for a vehicle make
+func (r *VehicleMakeRepository) UpdateMakeLogo(ctx context.Context, exec database.Executor, id int, logoURL string) error {
+	query := `UPDATE cars.vehicle_makes SET logo_url = $2 WHERE id = $1`
+	_, err := exec.ExecContext(ctx, query, id, logoURL)
 	return err
 }
