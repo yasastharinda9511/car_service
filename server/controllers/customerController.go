@@ -72,7 +72,7 @@ func (cc *CustomerController) SetupRoutes(db *sql.DB) {
 	}), constants.VEHICLE_EDIT)).Methods("PUT")
 
 	// DELETE customer (soft delete)
-	customers.Handle("/{id}:[0-9]+", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	customers.Handle("/{id:[0-9]+}", authMiddleware.Authorize(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cc.deleteCustomer(w, r, db)
 	}), constants.VEHICLE_EDIT)).Methods("DELETE")
 }
