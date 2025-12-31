@@ -29,6 +29,7 @@ type VehicleFilters struct {
 	Search          string
 	DateFrom        *time.Time
 	DateTo          *time.Time
+	IsFeatured      *bool
 	QueryBuilder    *queryBuilder.QueryBuilder
 }
 
@@ -118,6 +119,18 @@ func (v *VehicleFilters) GetValuesFromRequest(r *http.Request) Filter {
 	v.Color = r.URL.Query().Get("color")
 	if v.Color != "" {
 		v.QueryBuilder.AddCondition(GetMappedField("color"), v.Color)
+	}
+
+	if isFeaturedStr := r.URL.Query().Get("is_featured"); isFeaturedStr != "" {
+		if isFeaturedStr == "true" {
+			featured := true
+			v.IsFeatured = &featured
+			v.QueryBuilder.AddCondition(GetMappedField("is_featured"), true)
+		} else if isFeaturedStr == "false" {
+			featured := false
+			v.IsFeatured = &featured
+			v.QueryBuilder.AddCondition(GetMappedField("is_featured"), false)
+		}
 	}
 
 	dateFromStr := r.URL.Query().Get("dateRangeStart")

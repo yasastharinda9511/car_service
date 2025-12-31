@@ -21,6 +21,8 @@ var VehicleFieldMapping = map[string]string{
 	"updated_at":          "v.updated_at",
 	"code":                "v.code",
 	"id":                  "v.id",
+	"is_featured":         "v.is_featured",
+	"featured_at":         "v.featured_at",
 
 	// Shipping table fields (alias: vs)
 	"shipping_status":   "vs.shipping_status",
