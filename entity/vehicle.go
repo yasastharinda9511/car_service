@@ -6,6 +6,7 @@ type Vehicle struct {
 	ID                 int64      `json:"id" database:"id"`
 	Code               string     `json:"code" database:"code"`
 	Make               string     `json:"make" database:"make"`
+	MakeID             *int       `json:"make_id" database:"make_id"`
 	Model              string     `json:"model" database:"model"`
 	TrimLevel          *string    `json:"trim_level" database:"trim_level"`
 	YearOfManufacture  int        `json:"year_of_manufacture" database:"year_of_manufacture"`

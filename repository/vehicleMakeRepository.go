@@ -95,3 +95,20 @@ func (r *VehicleMakeRepository) UpdateMakeLogo(ctx context.Context, exec databas
 	_, err := exec.ExecContext(ctx, query, id, logoURL)
 	return err
 }
+
+// GetVehicleMakeByName retrieves a vehicle make by its name (case-insensitive)
+func (r *VehicleMakeRepository) GetVehicleMakeByName(ctx context.Context, exec database.Executor, makeName string) (*entity.VehicleMake, error) {
+	query := `SELECT id, make_name, country_origin, logo_url, is_active, created_at
+	          FROM cars.vehicle_makes
+	          WHERE LOWER(make_name) = LOWER($1)`
+
+	var make entity.VehicleMake
+	err := exec.QueryRowContext(ctx, query, makeName).Scan(
+		&make.ID, &make.MakeName, &make.CountryOrigin, &make.LogoURL, &make.IsActive, &make.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &make, nil
+}

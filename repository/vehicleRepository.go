@@ -87,10 +87,11 @@ func (s *VehicleRepository) GetAllVehicles(ctx context.Context, exec database.Ex
 // Build query based on permissions
 func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 	query := `
-		SELECT 
+		SELECT
 			v.id,
 			v.code,
 			v.make,
+			vm.id as make_id,
 			v.model,
 			v.trim_level,
 			v.year_of_manufacture,
@@ -183,6 +184,10 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 		LEFT JOIN cars.suppliers sup ON vp.supplier_id = sup.id`
 	}
 
+	// Always join with vehicle_makes to get make_id
+	query += `
+		LEFT JOIN cars.vehicle_makes vm ON LOWER(v.make) = LOWER(vm.make_name)`
+
 	return query
 }
 
@@ -192,7 +197,7 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 
 	// Create slice for scanning - start with base vehicle fields
 	scanArgs := []interface{}{
-		&vc.Vehicle.ID, &vc.Vehicle.Code, &vc.Vehicle.Make, &vc.Vehicle.Model,
+		&vc.Vehicle.ID, &vc.Vehicle.Code, &vc.Vehicle.Make, &vc.Vehicle.MakeID, &vc.Vehicle.Model,
 		&vc.Vehicle.TrimLevel, &vc.Vehicle.YearOfManufacture,
 		&vc.Vehicle.Color, &vc.Vehicle.MileageKm, &vc.Vehicle.ChassisID,
 		&vc.Vehicle.ConditionStatus, &vc.Vehicle.AuctionGrade,
@@ -407,6 +412,7 @@ func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Ex
         v.id,
 		v.code,
 		v.make,
+		vm.id as make_id,
 		v.model,
 		v.trim_level,
 		v.year_of_manufacture,
@@ -420,10 +426,11 @@ func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Ex
 		v.created_at,
 		v.updated_at
 		FROM cars.vehicles v
+		LEFT JOIN cars.vehicle_makes vm ON LOWER(v.make) = LOWER(vm.make_name)
 		WHERE v.id = $1`
 
 	var vehicle entity.Vehicle
-	err := exec.QueryRowContext(ctx, query, id).Scan(&vehicle.ID, &vehicle.Code, &vehicle.Make, &vehicle.Model, &vehicle.TrimLevel, &vehicle.YearOfManufacture,
+	err := exec.QueryRowContext(ctx, query, id).Scan(&vehicle.ID, &vehicle.Code, &vehicle.Make, &vehicle.MakeID, &vehicle.Model, &vehicle.TrimLevel, &vehicle.YearOfManufacture,
 		&vehicle.Color, &vehicle.MileageKm, &vehicle.ChassisID, &vehicle.ConditionStatus, &vehicle.AuctionGrade,
 		&vehicle.CIFValue, &vehicle.Currency, &vehicle.CreatedAt, &vehicle.UpdatedAt)
 	if err != nil {
