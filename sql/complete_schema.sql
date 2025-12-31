@@ -134,9 +134,15 @@ CREATE TABLE cars.vehicles (
     invoice_fob_jpy DECIMAL(15,2),
     registration_number VARCHAR(20),
     record_date TIMESTAMP,
+    is_featured BOOLEAN DEFAULT FALSE,
+    featured_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add comments for featured fields
+COMMENT ON COLUMN cars.vehicles.is_featured IS 'Whether this vehicle is featured/highlighted on the homepage or listings';
+COMMENT ON COLUMN cars.vehicles.featured_at IS 'Timestamp when the vehicle was marked as featured';
 
 -- Create indexes for vehicles table
 CREATE INDEX idx_vehicles_chassis_id ON cars.vehicles(chassis_id);
@@ -144,6 +150,8 @@ CREATE INDEX idx_vehicles_make_model ON cars.vehicles(make, model);
 CREATE INDEX idx_vehicles_year ON cars.vehicles(year_of_manufacture);
 CREATE INDEX idx_vehicles_code ON cars.vehicles(code);
 CREATE INDEX idx_vehicles_make_year ON cars.vehicles(make, year_of_manufacture);
+CREATE INDEX idx_vehicles_is_featured ON cars.vehicles(is_featured) WHERE is_featured = true;
+CREATE INDEX idx_vehicles_featured_at ON cars.vehicles(featured_at DESC) WHERE featured_at IS NOT NULL;
 
 -- Purchase Information Table (with supplier_id foreign key)
 CREATE TABLE cars.vehicle_purchases (

@@ -24,6 +24,8 @@ type Vehicle struct {
 	InvoiceFOBJPY      *float64   `json:"invoice_fob_jpy" database:"invoice_fob_jpy"`
 	RegistrationNumber *string    `json:"registration_number" database:"registration_number"`
 	RecordDate         *time.Time `json:"record_date" database:"record_date"`
+	IsFeatured         bool       `json:"is_featured" database:"is_featured"`
+	FeaturedAt         *time.Time `json:"featured_at" database:"featured_at"`
 	CreatedAt          time.Time  `json:"created_at" database:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at" database:"updated_at"`
 }

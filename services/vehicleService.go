@@ -11,6 +11,7 @@ import (
 	"car_service/repository"
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -639,4 +640,49 @@ func (s *VehicleService) GetPurchaseHistoryByStatus(ctx context.Context, status 
 // GetPurchaseHistoryBySupplier retrieves purchase history for a specific supplier
 func (s *VehicleService) GetPurchaseHistoryBySupplier(ctx context.Context, supplierID int64) ([]entity.VehiclePurchaseHistoryWithDetails, error) {
 	return s.vehiclePurchaseHistoryRepository.GetHistoryBySupplier(ctx, s.db, supplierID)
+}
+
+// SetVehicleFeatured marks a vehicle as featured or unfeatured
+func (s *VehicleService) SetVehicleFeatured(ctx context.Context, vehicleID int64, isFeatured bool) error {
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id":  vehicleID,
+		"is_featured": isFeatured,
+	}).Info("Setting vehicle featured status")
+
+	err := s.vehicleRepository.SetVehicleFeatured(ctx, s.db, vehicleID, isFeatured)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to set vehicle featured status")
+		return err
+	}
+
+	logger.WithField("vehicle_id", vehicleID).Info("Vehicle featured status updated successfully")
+	return nil
+}
+
+// GetFeaturedVehicles retrieves all featured vehicles
+func (s *VehicleService) GetFeaturedVehicles(ctx context.Context, limit int) ([]entity.VehicleComplete, error) {
+	logger.WithField("limit", limit).Info("Fetching featured vehicles")
+
+	// Get permissions from context
+	permissions, ok := ctx.Value("permissions").([]string)
+	if !ok {
+		logger.Error("Permissions not found in context")
+		return nil, fmt.Errorf("permissions not found in context")
+	}
+
+	vehicles, err := s.vehicleRepository.GetFeaturedVehicles(ctx, s.db, limit, permissions)
+	if err != nil {
+		logger.WithField("error", err.Error()).Error("Failed to fetch featured vehicles")
+		return nil, err
+	}
+
+	logger.WithFields(map[string]interface{}{
+		"count": len(vehicles),
+		"limit": limit,
+	}).Info("Featured vehicles fetched successfully")
+
+	return vehicles, nil
 }

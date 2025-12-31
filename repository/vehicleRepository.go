@@ -102,6 +102,8 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 			v.auction_grade,
 			v.cif_value,
 			v.currency,
+			v.is_featured,
+			v.featured_at,
 			v.created_at,
 			v.updated_at`
 
@@ -201,7 +203,8 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 		&vc.Vehicle.TrimLevel, &vc.Vehicle.YearOfManufacture,
 		&vc.Vehicle.Color, &vc.Vehicle.MileageKm, &vc.Vehicle.ChassisID,
 		&vc.Vehicle.ConditionStatus, &vc.Vehicle.AuctionGrade,
-		&vc.Vehicle.CIFValue, &vc.Vehicle.Currency, &vc.Vehicle.CreatedAt, &vc.Vehicle.UpdatedAt,
+		&vc.Vehicle.CIFValue, &vc.Vehicle.Currency, &vc.Vehicle.IsFeatured, &vc.Vehicle.FeaturedAt,
+		&vc.Vehicle.CreatedAt, &vc.Vehicle.UpdatedAt,
 	}
 
 	// Add shipping fields if permitted
@@ -423,6 +426,8 @@ func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Ex
 		v.auction_grade,
 		v.cif_value,
 		v.currency,
+		v.is_featured,
+		v.featured_at,
 		v.created_at,
 		v.updated_at
 		FROM cars.vehicles v
@@ -432,7 +437,7 @@ func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Ex
 	var vehicle entity.Vehicle
 	err := exec.QueryRowContext(ctx, query, id).Scan(&vehicle.ID, &vehicle.Code, &vehicle.Make, &vehicle.MakeID, &vehicle.Model, &vehicle.TrimLevel, &vehicle.YearOfManufacture,
 		&vehicle.Color, &vehicle.MileageKm, &vehicle.ChassisID, &vehicle.ConditionStatus, &vehicle.AuctionGrade,
-		&vehicle.CIFValue, &vehicle.Currency, &vehicle.CreatedAt, &vehicle.UpdatedAt)
+		&vehicle.CIFValue, &vehicle.Currency, &vehicle.IsFeatured, &vehicle.FeaturedAt, &vehicle.CreatedAt, &vehicle.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -685,4 +690,100 @@ func (s *VehicleRepository) DeleteVehicle(ctx context.Context, exec database.Exe
 	}
 
 	return nil
+}
+
+// SetVehicleFeatured marks a vehicle as featured or unfeatured
+func (s *VehicleRepository) SetVehicleFeatured(ctx context.Context, exec database.Executor, vehicleID int64, isFeatured bool) error {
+	var query string
+	if isFeatured {
+		query = `UPDATE cars.vehicles SET is_featured = true, featured_at = CURRENT_TIMESTAMP WHERE id = $1`
+	} else {
+		query = `UPDATE cars.vehicles SET is_featured = false, featured_at = NULL WHERE id = $1`
+	}
+
+	result, err := exec.ExecContext(ctx, query, vehicleID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+// GetFeaturedVehicles retrieves all featured vehicles
+func (s *VehicleRepository) GetFeaturedVehicles(ctx context.Context, exec database.Executor, limit int, userPermissions []string) ([]entity.VehicleComplete, error) {
+	query := s.buildVehicleQuery(userPermissions)
+
+	// Add WHERE clause for featured vehicles
+	query += ` WHERE v.is_featured = true`
+
+	// Order by featured_at descending (most recently featured first)
+	query += ` ORDER BY v.featured_at DESC`
+
+	// Add limit
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	rows, err := exec.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	vehicles := make([]entity.VehicleComplete, 0)
+	vehicleIDs := make([]int64, 0)
+
+	for rows.Next() {
+		vc, err := s.scanVehicle(rows, userPermissions)
+		if err != nil {
+			return nil, err
+		}
+
+		vc.VehicleImages = []entity.VehicleImage{}
+		vc.VehicleDocuments = []entity.VehicleDocument{}
+		vehicles = append(vehicles, vc)
+		vehicleIDs = append(vehicleIDs, vc.Vehicle.ID)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(vehicleIDs) == 0 {
+		return vehicles, nil
+	}
+
+	// Fetch images
+	images, err := s.getImagesByVehicleIDs(ctx, exec, vehicleIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch documents
+	documents, err := s.getDocumentsByVehicleIDs(ctx, exec, vehicleIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Attach images and documents to vehicles
+	for i := range vehicles {
+		vehicleID := vehicles[i].Vehicle.ID
+		if imgs, ok := images[vehicleID]; ok {
+			vehicles[i].VehicleImages = imgs
+		}
+		if docs, ok := documents[vehicleID]; ok {
+			vehicles[i].VehicleDocuments = docs
+		}
+	}
+
+	return vehicles, nil
 }

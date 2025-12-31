@@ -90,6 +90,10 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.Handle("/upload-document/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadDocumentHandler), constants.VEHICLE_CREATE)).Methods("POST")
 	vehicles.Handle("/download-document/{document_id}", authMiddleware.Authorize(http.HandlerFunc(vc.serveDocumentHandler), constants.VEHICLE_ACCESS)).Methods("GET")
 
+	// Featured vehicles routes
+	vehicles.Handle("/featured", authMiddleware.Authorize(http.HandlerFunc(vc.getFeaturedVehicles), constants.VEHICLE_ACCESS)).Methods("GET")
+	vehicles.Handle("/{id}/featured", authMiddleware.Authorize(http.HandlerFunc(vc.setVehicleFeatured), constants.VEHICLE_EDIT)).Methods("PUT")
+
 }
 
 func (vc *VehicleController) getVehicles(w http.ResponseWriter, r *http.Request) {
@@ -925,6 +929,70 @@ func (vc *VehicleController) getPurchaseHistoryBySupplier(w http.ResponseWriter,
 		"meta": map[string]interface{}{
 			"supplier_id": supplierID,
 			"total":       len(history),
+		},
+	})
+}
+
+// setVehicleFeatured marks a vehicle as featured or unfeatured
+func (vc *VehicleController) setVehicleFeatured(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	vehicleID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
+		return
+	}
+
+	var req struct {
+		IsFeatured bool `json:"is_featured"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	err = vc.vehicleService.SetVehicleFeatured(r.Context(), vehicleID, req.IsFeatured)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			vc.writeError(w, http.StatusNotFound, "Vehicle not found")
+			return
+		}
+		vc.writeError(w, http.StatusInternalServerError, "Failed to update featured status")
+		return
+	}
+
+	statusMsg := "unfeatured"
+	if req.IsFeatured {
+		statusMsg = "featured"
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]string{
+		"message": fmt.Sprintf("Vehicle %s successfully", statusMsg),
+	})
+}
+
+// getFeaturedVehicles retrieves all featured vehicles
+func (vc *VehicleController) getFeaturedVehicles(w http.ResponseWriter, r *http.Request) {
+	// Get limit from query params (default to 10, max 50)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	vehicles, err := vc.vehicleService.GetFeaturedVehicles(r.Context(), limit)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": vehicles,
+		"meta": map[string]interface{}{
+			"total": len(vehicles),
+			"limit": limit,
 		},
 	})
 }
