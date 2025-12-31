@@ -194,10 +194,21 @@ func (s *CustomerService) UpdateCustomer(ctx context.Context, id int64, req requ
 }
 
 // DeleteCustomer soft deletes a customer
-func (s *CustomerService) DeleteCustomer(ctx context.Context, id int64) error {
+func (s *CustomerService) DeleteCustomer(ctx context.Context, id int64, authHeader string) error {
 	logger.WithField("customer_id", id).Info("Deleting customer")
 
-	err := s.customerRepository.DeleteCustomer(ctx, s.db, id)
+	// Fetch customer details before deletion for notification
+	customer, err := s.customerRepository.GetCustomerByID(ctx, s.db, id)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"customer_id": id,
+			"error":       err.Error(),
+		}).Error("Failed to fetch customer before deletion")
+		return err
+	}
+
+	// Delete the customer
+	err = s.customerRepository.DeleteCustomer(ctx, s.db, id)
 	if err != nil {
 		logger.WithFields(map[string]interface{}{
 			"customer_id": id,
@@ -206,7 +217,37 @@ func (s *CustomerService) DeleteCustomer(ctx context.Context, id int64) error {
 		return err
 	}
 
-	logger.WithField("customer_id", id).Info("Customer deleted successfully")
+	logger.WithFields(map[string]interface{}{
+		"customer_id":   id,
+		"customer_name": customer.CustomerName,
+	}).Info("Customer deleted successfully")
+
+	// Extract user ID from context
+	userID, _ := middleware.GetUserIDFromContext(ctx)
+
+	// Create notification handler
+	customerDeletedHandler := notificationHandlers.NewCustomerDeletedNotificationHandler(
+		customer,
+		userID,
+	)
+
+	// Send notification asynchronously
+	go func() {
+		if err := s.notificationService.SendNotification(customerDeletedHandler, authHeader); err != nil {
+			logger.WithFields(map[string]interface{}{
+				"customer_id":   id,
+				"customer_name": customer.CustomerName,
+				"error":         err.Error(),
+			}).Error("Failed to send customer deletion notification")
+		}
+	}()
+
+	logger.WithFields(map[string]interface{}{
+		"customer_id":       id,
+		"customer_name":     customer.CustomerName,
+		"notification_type": "customer_deleted",
+	}).Info("Customer deletion notification triggered")
+
 	return nil
 }
 

@@ -218,7 +218,10 @@ func (cc *CustomerController) deleteCustomer(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err = cc.customerService.DeleteCustomer(r.Context(), id)
+	// Extract authorization header from request
+	authHeader := r.Header.Get("Authorization")
+
+	err = cc.customerService.DeleteCustomer(r.Context(), id, authHeader)
 	if err != nil {
 		cc.writeError(w, http.StatusInternalServerError, err.Error())
 		return
