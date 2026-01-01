@@ -643,13 +643,23 @@ func (s *VehicleService) GetPurchaseHistoryBySupplier(ctx context.Context, suppl
 }
 
 // SetVehicleFeatured marks a vehicle as featured or unfeatured
-func (s *VehicleService) SetVehicleFeatured(ctx context.Context, vehicleID int64, isFeatured bool) error {
+func (s *VehicleService) SetVehicleFeatured(ctx context.Context, vehicleID int64, isFeatured bool, authHeader string) error {
 	logger.WithFields(map[string]interface{}{
 		"vehicle_id":  vehicleID,
 		"is_featured": isFeatured,
 	}).Info("Setting vehicle featured status")
 
-	err := s.vehicleRepository.SetVehicleFeatured(ctx, s.db, vehicleID, isFeatured)
+	// Fetch vehicle details before update for notification
+	vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, vehicleID)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to fetch vehicle before updating featured status")
+		return err
+	}
+
+	err = s.vehicleRepository.SetVehicleFeatured(ctx, s.db, vehicleID, isFeatured)
 	if err != nil {
 		logger.WithFields(map[string]interface{}{
 			"vehicle_id": vehicleID,
@@ -659,6 +669,36 @@ func (s *VehicleService) SetVehicleFeatured(ctx context.Context, vehicleID int64
 	}
 
 	logger.WithField("vehicle_id", vehicleID).Info("Vehicle featured status updated successfully")
+
+	// Extract user ID from context
+	userID, _ := middleware.GetUserIDFromContext(ctx)
+
+	// Create notification handler
+	featuredVehicleHandler := notificationHandlers.NewFeaturedVehicleNotificationHandler(
+		vehicle,
+		isFeatured,
+		userID,
+	)
+
+	// Send notification asynchronously
+	go func() {
+		if err := s.notificationService.SendNotification(featuredVehicleHandler, authHeader); err != nil {
+			logger.WithFields(map[string]interface{}{
+				"vehicle_id":  vehicleID,
+				"code":        vehicle.Code,
+				"is_featured": isFeatured,
+				"error":       err.Error(),
+			}).Error("Failed to send vehicle featured status notification")
+		}
+	}()
+
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id":        vehicleID,
+		"code":              vehicle.Code,
+		"notification_type": "vehicle_featured_status_changed",
+		"is_featured":       isFeatured,
+	}).Info("Vehicle featured status notification triggered")
+
 	return nil
 }
 

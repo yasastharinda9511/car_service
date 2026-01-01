@@ -951,7 +951,10 @@ func (vc *VehicleController) setVehicleFeatured(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = vc.vehicleService.SetVehicleFeatured(r.Context(), vehicleID, req.IsFeatured)
+	// Extract authorization header
+	authHeader := r.Header.Get("Authorization")
+
+	err = vc.vehicleService.SetVehicleFeatured(r.Context(), vehicleID, req.IsFeatured, authHeader)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			vc.writeError(w, http.StatusNotFound, "Vehicle not found")
