@@ -28,7 +28,6 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 
 	logger.Debug("Creating service instances")
 	notificationService := services.NewNotificationService(cfg.NotificationServiceURL)
-	vehicleService := services.NewVehicleService(db, notificationService)
 	customerService := services.NewCustomerService(db, notificationService)
 	supplierService := services.NewSupplierService(db, notificationService)
 	analyticService := services.NewAnalyticsService(db)
@@ -59,9 +58,11 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 	} else {
 		logger.Info("Using local file storage for images")
 	}
+	vehicleService := services.NewVehicleService(db, notificationService, s3Service)
 
 	logger.Debug("Initializing controllers")
 	vehicleController := controllers.NewVehicleController(vehicleService, s3Service, server.router, cfg.IntrospectURL)
+	vehicleShareController := controllers.NewVehicleShareController(vehicleService, s3Service, server.router, cfg.IntrospectURL)
 	analyticController := controllers.NewAnalyticController(analyticService, server.router)
 	vehicleMakeController := controllers.NewVehicleMakeController(server.router, cfg.IntrospectURL, s3Service)
 	vehicleModelController := controllers.NewVehicleModelController(server.router, cfg.IntrospectURL)
@@ -70,6 +71,7 @@ func NewAPIServer(db *sql.DB, cfg *config.Config) *APIServer {
 
 	logger.Debug("Setting up controller routes")
 	vehicleController.SetupRoutes()
+	vehicleShareController.SetupRoutes()
 	analyticController.SetupRoutes()
 	vehicleMakeController.SetupRoutes(db)
 	vehicleModelController.SetupRoutes(db)

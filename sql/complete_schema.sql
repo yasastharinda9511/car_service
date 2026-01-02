@@ -777,3 +777,38 @@ UNION ALL
 SELECT 'Customers', COUNT(*) FROM cars.customers
 UNION ALL
 SELECT 'Suppliers', COUNT(*) FROM cars.suppliers;
+
+-- =====================================================
+-- VEHICLE SHARE TOKENS TABLE
+-- =====================================================
+CREATE TABLE cars.vehicle_share_tokens (
+    id SERIAL PRIMARY KEY,
+    vehicle_id BIGINT NOT NULL,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    include_details TEXT[] DEFAULT '{}',
+    created_by VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+
+    CONSTRAINT fk_vehicle_share_tokens_vehicle
+        FOREIGN KEY (vehicle_id)
+            REFERENCES cars.vehicles(id)
+            ON DELETE CASCADE
+);
+
+-- Indexes for vehicle_share_tokens
+CREATE INDEX idx_vehicle_share_tokens_token
+    ON cars.vehicle_share_tokens(token);
+
+CREATE INDEX idx_vehicle_share_tokens_vehicle_id
+    ON cars.vehicle_share_tokens(vehicle_id);
+
+CREATE INDEX idx_vehicle_share_tokens_expires_at
+    ON cars.vehicle_share_tokens(expires_at);
+
+COMMENT ON TABLE cars.vehicle_share_tokens IS 'Stores shareable tokens for public vehicle data access';
+COMMENT ON COLUMN cars.vehicle_share_tokens.token IS '64-character hex token for public access';
+COMMENT ON COLUMN cars.vehicle_share_tokens.include_details IS 'Array of details to include: shipping, financial, purchase, images';
+COMMENT ON COLUMN cars.vehicle_share_tokens.created_by IS 'User ID who created the share token';
+

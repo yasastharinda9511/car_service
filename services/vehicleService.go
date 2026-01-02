@@ -10,8 +10,11 @@ import (
 	"car_service/notificationHandlers"
 	"car_service/repository"
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	"path"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -28,12 +31,14 @@ type VehicleService struct {
 	vehicleSalesRepository           *repository.VehicleSalesRepository
 	vehicleShippingHistoryRepository *repository.VehicleShippingHistoryRepository
 	vehiclePurchaseHistoryRepository *repository.VehiclePurchaseHistoryRepository
+	vehicleShareTokenRepository      *repository.VehicleShareTokenRepository
 	customerRepository               *repository.CustomerRepository
 	supplierRepository               *repository.SupplierRepository
 	notificationService              *NotificationService
+	S3Service                        *S3Service
 }
 
-func NewVehicleService(db *sql.DB, notificationService *NotificationService) *VehicleService {
+func NewVehicleService(db *sql.DB, notificationService *NotificationService, service *S3Service) *VehicleService {
 	return &VehicleService{db: db,
 		vehicleRepository:                repository.NewVehicleRepository(),
 		vehicleIMageRepository:           repository.NewVehicleImageRepository(),
@@ -44,9 +49,11 @@ func NewVehicleService(db *sql.DB, notificationService *NotificationService) *Ve
 		vehicleShippingRepository:        repository.NewVehicleShippingRepository(),
 		vehicleShippingHistoryRepository: repository.NewVehicleShippingHistoryRepository(),
 		vehiclePurchaseHistoryRepository: repository.NewVehiclePurchaseHistoryRepository(),
+		vehicleShareTokenRepository:      repository.NewVehicleShareTokenRepository(),
 		customerRepository:               repository.NewCustomerRepository(),
 		supplierRepository:               repository.NewSupplierRepository(),
 		notificationService:              notificationService,
+		S3Service:                        service,
 	}
 }
 
@@ -725,4 +732,165 @@ func (s *VehicleService) GetFeaturedVehicles(ctx context.Context, limit int) ([]
 	}).Info("Featured vehicles fetched successfully")
 
 	return vehicles, nil
+}
+
+// GenerateShareToken generates a shareable token for a vehicle
+func (s *VehicleService) GenerateShareToken(ctx context.Context, vehicleID int64, req request.PublicTokenRequest) (*entity.VehicleShareToken, error) {
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id":      vehicleID,
+		"expire_in_days":  req.ExpireInDays,
+		"include_details": req.IncludeDetails,
+	}).Info("Generating share token for vehicle")
+
+	// Verify vehicle exists
+	_, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, vehicleID)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Vehicle not found")
+		return nil, err
+	}
+
+	// Generate random token
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		logger.WithField("error", err.Error()).Error("Failed to generate random token")
+		return nil, err
+	}
+	token := hex.EncodeToString(tokenBytes)
+
+	// Calculate expiration date
+	expiresAt := time.Now().AddDate(0, 0, req.ExpireInDays)
+
+	// Get user ID from context
+	userID, _ := middleware.GetUserIDFromContext(ctx)
+
+	// Create share token entity
+	shareToken := &entity.VehicleShareToken{
+		VehicleID:      vehicleID,
+		Token:          token,
+		ExpiresAt:      expiresAt,
+		IncludeDetails: req.IncludeDetails,
+		CreatedBy:      userID,
+		IsActive:       true,
+	}
+
+	// Insert into database
+	id, err := s.vehicleShareTokenRepository.Insert(ctx, s.db, shareToken)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to insert share token")
+		return nil, err
+	}
+
+	shareToken.ID = id
+	shareToken.CreatedAt = time.Now()
+
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id": vehicleID,
+		"token_id":   id,
+		"expires_at": expiresAt,
+	}).Info("Share token generated successfully")
+
+	return shareToken, nil
+}
+
+// GetPublicVehicleData retrieves public vehicle data using a share token
+func (s *VehicleService) GetPublicVehicleData(ctx context.Context, token string) (*response.PublicVehicleResponse, error) {
+	logger.WithField("token", token[:8]+"...").Info("Fetching public vehicle data with share token")
+
+	// Validate token and get token details
+	shareToken, err := s.vehicleShareTokenRepository.GetByToken(ctx, s.db, token)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			logger.WithField("token", token[:8]+"...").Warn("Invalid or expired share token")
+			return nil, fmt.Errorf("invalid or expired share token")
+		}
+		logger.WithField("error", err.Error()).Error("Failed to retrieve share token")
+		return nil, err
+	}
+
+	// Fetch vehicle details
+	vehicle, err := s.vehicleRepository.GetVehicleByID(ctx, s.db, shareToken.VehicleID)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"vehicle_id": shareToken.VehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to fetch vehicle for public share")
+		return nil, err
+	}
+
+	// Build public response with basic info (always included)
+	publicResponse := &response.PublicVehicleResponse{
+		Code:                vehicle.Code,
+		Make:                vehicle.Make,
+		Model:               vehicle.Model,
+		YearOfManufacture:   vehicle.YearOfManufacture,
+		Color:               vehicle.Color,
+		ChassisID:           vehicle.ChassisID,
+		ConditionStatus:     vehicle.ConditionStatus,
+		TrimLevel:           vehicle.TrimLevel,
+		MileageKm:           vehicle.MileageKm,
+		YearOfRegistration:  vehicle.YearOfRegistration,
+		AuctionGrade:        vehicle.AuctionGrade,
+		AuctionPrice:        vehicle.AuctionPrice,
+		Currency:            vehicle.Currency,
+		ShareTokenExpiresAt: shareToken.ExpiresAt,
+	}
+
+	// Add optional details based on IncludeDetails
+	for _, detail := range shareToken.IncludeDetails {
+		switch detail {
+		case "shipping":
+			shipping, err := s.vehicleShippingRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+			if err == nil && shipping != nil {
+				publicResponse.ShippingStatus = &shipping.ShippingStatus
+				publicResponse.VesselName = shipping.VesselName
+				publicResponse.DepartureHarbour = shipping.DepartureHarbour
+				publicResponse.ShipmentDate = shipping.ShipmentDate
+				publicResponse.ArrivalDate = shipping.ArrivalDate
+				publicResponse.ClearingDate = shipping.ClearingDate
+			}
+
+		case "financial":
+			financial, err := s.vehicleFinancialsRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+			if err == nil && financial != nil {
+				publicResponse.TotalCostJPY = &financial.TotalCostLKR
+			}
+
+		case "purchase":
+			purchase, err := s.vehiclePurchaseRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+			if err == nil && purchase != nil {
+				publicResponse.PurchaseStatus = &purchase.PurchaseStatus
+				publicResponse.PurchaseDate = purchase.PurchaseDate
+			}
+
+		case "images":
+			images, err := s.vehicleIMageRepository.GetByVehicleID(ctx, s.db, vehicle.ID)
+			if err == nil && len(images) > 0 {
+				var imageResponses []response.VehicleImageResponse
+				for _, img := range images {
+					presignedResponse, _ := s.S3Service.GetPresignedURL(ctx, path.Join((fmt.Sprintf("vehicles/%d/images", vehicle.ID)), img.Filename), 15)
+					imageResponses = append(imageResponses, response.VehicleImageResponse{
+						ID:        img.ID,
+						ImageURL:  presignedResponse.PresignedURL,
+						IsPrimary: img.IsPrimary,
+					})
+				}
+
+				publicResponse.Images = imageResponses
+			}
+		}
+	}
+
+	logger.WithFields(map[string]interface{}{
+		"vehicle_id":      vehicle.ID,
+		"vehicle_code":    vehicle.Code,
+		"include_details": shareToken.IncludeDetails,
+	}).Info("Public vehicle data fetched successfully")
+
+	return publicResponse, nil
 }
