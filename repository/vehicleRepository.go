@@ -100,6 +100,8 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 			v.chassis_id,
 			v.condition_status,
 			v.auction_grade,
+			v.auction_price,
+			v.price_quoted,
 			v.cif_value,
 			v.currency,
 			v.is_featured,
@@ -202,8 +204,8 @@ func (s *VehicleRepository) scanVehicle(rows *sql.Rows, userPermissions []string
 		&vc.Vehicle.ID, &vc.Vehicle.Code, &vc.Vehicle.Make, &vc.Vehicle.MakeID, &vc.Vehicle.Model,
 		&vc.Vehicle.TrimLevel, &vc.Vehicle.YearOfManufacture,
 		&vc.Vehicle.Color, &vc.Vehicle.MileageKm, &vc.Vehicle.ChassisID,
-		&vc.Vehicle.ConditionStatus, &vc.Vehicle.AuctionGrade,
-		&vc.Vehicle.CIFValue, &vc.Vehicle.Currency, &vc.Vehicle.IsFeatured, &vc.Vehicle.FeaturedAt,
+		&vc.Vehicle.ConditionStatus, &vc.Vehicle.AuctionGrade, &vc.Vehicle.AuctionPrice,
+		&vc.Vehicle.PriceQuoted, &vc.Vehicle.CIFValue, &vc.Vehicle.Currency, &vc.Vehicle.IsFeatured, &vc.Vehicle.FeaturedAt,
 		&vc.Vehicle.CreatedAt, &vc.Vehicle.UpdatedAt,
 	}
 
@@ -424,6 +426,8 @@ func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Ex
 		v.chassis_id,
 		v.condition_status,
 		v.auction_grade,
+		v.auction_price,
+		v.price_quoted,
 		v.cif_value,
 		v.currency,
 		v.is_featured,
@@ -436,8 +440,8 @@ func (s *VehicleRepository) GetVehicleByID(ctx context.Context, exec database.Ex
 
 	var vehicle entity.Vehicle
 	err := exec.QueryRowContext(ctx, query, id).Scan(&vehicle.ID, &vehicle.Code, &vehicle.Make, &vehicle.MakeID, &vehicle.Model, &vehicle.TrimLevel, &vehicle.YearOfManufacture,
-		&vehicle.Color, &vehicle.MileageKm, &vehicle.ChassisID, &vehicle.ConditionStatus, &vehicle.AuctionGrade,
-		&vehicle.CIFValue, &vehicle.Currency, &vehicle.IsFeatured, &vehicle.FeaturedAt, &vehicle.CreatedAt, &vehicle.UpdatedAt)
+		&vehicle.Color, &vehicle.MileageKm, &vehicle.ChassisID, &vehicle.ConditionStatus, &vehicle.AuctionGrade, &vehicle.AuctionPrice,
+		&vehicle.PriceQuoted, &vehicle.CIFValue, &vehicle.Currency, &vehicle.IsFeatured, &vehicle.FeaturedAt, &vehicle.CreatedAt, &vehicle.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -449,14 +453,14 @@ func (s *VehicleRepository) Insert(ctx context.Context, exec database.Executor, 
 	var vehicleID int64
 	query := `
         INSERT INTO cars.vehicles (code, make, model, trim_level, year_of_manufacture, color,
-            mileage_km, chassis_id, condition_status, auction_grade, cif_value, currency)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            mileage_km, chassis_id, condition_status, auction_grade, auction_price, price_quoted, cif_value, currency)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id
     `
 	err := exec.QueryRowContext(ctx, query,
 		req.Code, req.Make, req.Model, req.TrimLevel,
 		req.YearOfManufacture, req.Color, req.MileageKm, req.ChassisID,
-		req.ConditionStatus, req.AuctionGrade, req.CIFValue, req.Currency,
+		req.ConditionStatus, req.AuctionGrade, req.AuctionPrice, req.PriceQuoted, req.CIFValue, req.Currency,
 	).Scan(&vehicleID)
 	return vehicleID, err
 }
@@ -477,19 +481,20 @@ func (s *VehicleRepository) UpdateVehicleDetails(ctx context.Context, exec datab
            license_plate = COALESCE($12, license_plate),
            auction_grade = COALESCE($13, auction_grade),
            auction_price = COALESCE($14, auction_price),
-           cif_value = COALESCE($15, cif_value),
-           currency = COALESCE($16, currency),
-           hs_code = COALESCE($17, hs_code),
-           invoice_fob_jpy = COALESCE($18, invoice_fob_jpy),
-           registration_number = COALESCE($19, registration_number),
-           record_date = COALESCE($20, record_date),
+           price_quoted = COALESCE($15, price_quoted),
+           cif_value = COALESCE($16, cif_value),
+           currency = COALESCE($17, currency),
+           hs_code = COALESCE($18, hs_code),
+           invoice_fob_jpy = COALESCE($19, invoice_fob_jpy),
+           registration_number = COALESCE($20, registration_number),
+           record_date = COALESCE($21, record_date),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
    `
 
 	_, err := exec.QueryContext(ctx, query, vehicleID, req.Code, req.Make, req.Model, req.TrimLevel,
 		req.YearOfManufacture, req.Color, req.MileageKm, req.ChassisID, req.ConditionStatus,
-		req.YearOfRegistration, req.LicensePlate, req.AuctionGrade, req.AuctionPrice, req.CIFValue,
+		req.YearOfRegistration, req.LicensePlate, req.AuctionGrade, req.AuctionPrice, req.PriceQuoted, req.CIFValue,
 		req.Currency, req.HSCode, req.InvoiceFOBJPY, req.RegistrationNumber, req.RecordDate)
 
 	return err

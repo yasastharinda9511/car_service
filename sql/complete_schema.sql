@@ -128,6 +128,7 @@ CREATE TABLE cars.vehicles (
     license_plate VARCHAR(20),
     auction_grade VARCHAR(10),
     auction_price DECIMAL(15,2),
+    price_quoted DECIMAL(15,2),
     cif_value DECIMAL(15,2),
     currency VARCHAR(10) DEFAULT 'JPY',
     hs_code VARCHAR(20),

@@ -11,6 +11,8 @@ type CreateVehicleRequest struct {
 	ChassisID         string   `json:"chassis_id" binding:"required"`
 	ConditionStatus   string   `json:"condition_status"`
 	AuctionGrade      *string  `json:"auction_grade"`
+	AuctionPrice      *float64 `json:"auction_price"`
+	PriceQuoted       *float64 `json:"price_quoted"`
 	CIFValue          *float64 `json:"cif_value"`
 	Currency          string   `json:"currency"`
 }

@@ -15,6 +15,7 @@ var VehicleFieldMapping = map[string]string{
 	"condition_status":    "v.condition_status",
 	"auction_grade":       "v.auction_grade",
 	"auction_price":       "v.auction_price",
+	"price_quoted":        "v.price_quoted",
 	"cif_value":           "v.cif_value",
 	"currency":            "v.currency",
 	"created_at":          "v.created_at",

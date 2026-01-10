@@ -19,6 +19,7 @@ type PublicVehicleResponse struct {
 	YearOfRegistration *int     `json:"year_of_registration,omitempty"`
 	AuctionGrade       *string  `json:"auction_grade,omitempty"`
 	AuctionPrice       *float64 `json:"auction_price,omitempty"`
+	PriceQuoted        *float64 `json:"price_quoted,omitempty"`
 	Currency           string   `json:"currency,omitempty"`
 
 	// Shipping details (if included)

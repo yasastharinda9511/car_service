@@ -18,6 +18,7 @@ type Vehicle struct {
 	LicensePlate       *string    `json:"license_plate" database:"license_plate"`
 	AuctionGrade       *string    `json:"auction_grade" database:"auction_grade"`
 	AuctionPrice       *float64   `json:"auction_price" database:"auction_price"`
+	PriceQuoted        *float64   `json:"price_quoted" database:"price_quoted"`
 	CIFValue           *float64   `json:"cif_value" database:"cif_value"`
 	Currency           string     `json:"currency" database:"currency"`
 	HSCode             *string    `json:"hs_code" database:"hs_code"`
