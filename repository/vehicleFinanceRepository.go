@@ -20,7 +20,7 @@ func (r *VehicleFinancialsRepository) InsertDefault(ctx context.Context, exec da
 	_, err := exec.ExecContext(ctx, `
         INSERT INTO cars.vehicle_financials (vehicle_id, charges_lkr, tt_lkr, duty_lkr,
         clearing_lkr, other_expenses_lkr, total_cost_lkr)
-        VALUES ($1, 0, 0, 0, 0, 0, 0)
+        VALUES ($1, 0, 0, 0, 0, '{}'::jsonb, 0)
     `, vehicleID)
 	return err
 }
@@ -68,7 +68,10 @@ func (r *VehicleFinancialsRepository) GetDetailedFinancialSummary(ctx context.Co
         COALESCE(SUM(tt_lkr), 0) as total_tt,
         COALESCE(SUM(duty_lkr), 0) as total_duty,
         COALESCE(SUM(clearing_lkr), 0) as total_clearing,
-        COALESCE(SUM(other_expenses_lkr), 0) as total_other_expenses,
+        COALESCE(SUM((
+            SELECT SUM((value#>>'{}')::numeric)
+            FROM jsonb_each(COALESCE(other_expenses_lkr, '{}'::jsonb))
+        )), 0) as total_other_expenses,
         COALESCE(SUM(total_cost_lkr), 0) as total_investment
     FROM cars.vehicle_financials vf`
 

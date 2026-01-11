@@ -279,7 +279,7 @@ CREATE TABLE cars.vehicle_financials (
     tt_lkr DECIMAL(15,2),
     duty_lkr DECIMAL(15,2),
     clearing_lkr DECIMAL(15,2),
-    other_expenses_lkr DECIMAL(15,2),
+    other_expenses_lkr JSONB DEFAULT '{}',
     total_cost_lkr DECIMAL(15,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
