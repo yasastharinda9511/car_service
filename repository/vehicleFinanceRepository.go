@@ -45,6 +45,44 @@ func (r *VehicleFinancialsRepository) GetByVehicleID(ctx context.Context, exec d
 
 func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context, exec database.Executor, vehicleID int64, request *request.FinancialDetailsRequest) error {
 
+	// First, get the LC cost from vehicle_purchases
+	var lcCostJPY float64
+	lcQuery := `SELECT COALESCE(lc_cost_jpy, 0) FROM cars.vehicle_purchases WHERE vehicle_id = $1`
+	err := exec.QueryRowContext(ctx, lcQuery, vehicleID).Scan(&lcCostJPY)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+
+	// Calculate total from other_expenses JSONB
+	var otherExpensesTotal float64
+	if request.OtherExpensesLKR != nil && len(request.OtherExpensesLKR) > 0 {
+		otherExpensesQuery := `
+			SELECT COALESCE(SUM((value#>>'{}')::numeric), 0)
+			FROM jsonb_each($1::jsonb)
+		`
+		err = exec.QueryRowContext(ctx, otherExpensesQuery, request.OtherExpensesLKR).Scan(&otherExpensesTotal)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Calculate total cost: charges + tt + duty + clearing + other_expenses + lc_cost
+	totalCost := 0.0
+	if request.ChargesLKR != nil {
+		totalCost += *request.ChargesLKR
+	}
+	if request.TTLKR != nil {
+		totalCost += *request.TTLKR
+	}
+	if request.DutyLKR != nil {
+		totalCost += *request.DutyLKR
+	}
+	if request.ClearingLKR != nil {
+		totalCost += *request.ClearingLKR
+	}
+	totalCost += otherExpensesTotal
+	totalCost += lcCostJPY
+
 	query := `
        UPDATE cars.vehicle_financials
        SET charges_lkr = $2,
@@ -57,8 +95,8 @@ func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context
        WHERE vehicle_id = $1
    `
 
-	_, err := exec.ExecContext(ctx, query, vehicleID, request.ChargesLKR, request.TTLKR, request.DutyLKR,
-		request.ClearingLKR, request.OtherExpensesLKR, request.TotalCostLKR)
+	_, err = exec.ExecContext(ctx, query, vehicleID, request.ChargesLKR, request.TTLKR, request.DutyLKR,
+		request.ClearingLKR, request.OtherExpensesLKR, totalCost)
 	return err
 
 }

@@ -421,6 +421,24 @@ func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, pu
 		return err
 	}
 
+	// If LC cost was provided, recalculate the financial total
+	if purchaseRequest.LCCostJPY != nil {
+		// Get current financial details
+		financial, err := s.vehicleFinancialsRepository.GetByVehicleID(ctx, s.db, id)
+		if err == nil && financial != nil {
+			// Create a financial update request with current values to trigger recalculation
+			financialUpdate := &request.FinancialDetailsRequest{
+				ChargesLKR:       financial.ChargesLKR,
+				TTLKR:            financial.TTLKR,
+				DutyLKR:          financial.DutyLKR,
+				ClearingLKR:      financial.ClearingLKR,
+				OtherExpensesLKR: financial.OtherExpensesLKR,
+			}
+			// This will recalculate total_cost_lkr including the new LC cost
+			_ = s.vehicleFinancialsRepository.UpdateFinancialDetails(ctx, s.db, id, financialUpdate)
+		}
+	}
+
 	// Only send email if status actually changed
 	// Handle nil check for new status
 	if purchaseRequest.PurchaseStatus == nil {

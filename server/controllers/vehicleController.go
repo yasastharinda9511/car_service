@@ -244,11 +244,7 @@ func (vc *VehicleController) updateFinancials(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Validate required field
-	if req.TotalCostLKR <= 0 {
-		vc.writeError(w, http.StatusBadRequest, "Total cost must be greater than 0")
-		return
-	}
+	// Note: TotalCostLKR is now auto-calculated including LC cost
 
 	err = vc.vehicleService.UpdateFinancialDetails(r.Context(), id, &req)
 	if err != nil {
