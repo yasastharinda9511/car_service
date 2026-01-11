@@ -43,6 +43,21 @@ func (r *VehicleSalesRepository) GetByVehicleID(ctx context.Context, exec databa
 }
 
 func (r *VehicleSalesRepository) UpdateSalesDetails(ctx context.Context, exec database.Executor, vehicleID int64, req *request.SalesDetailsRequest) error {
+	// Get total_cost from vehicle_financials to auto-calculate profit
+	var totalCost float64
+	totalCostQuery := `SELECT COALESCE(total_cost_lkr, 0) FROM cars.vehicle_financials WHERE vehicle_id = $1`
+	err := exec.QueryRowContext(ctx, totalCostQuery, vehicleID).Scan(&totalCost)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+
+	// Calculate profit = revenue - total_cost
+	var profit *float64
+	if req.Revenue != nil {
+		calculatedProfit := *req.Revenue - totalCost
+		profit = &calculatedProfit
+	}
+
 	query := `
        UPDATE cars.vehicle_sales
        SET customer_id = $2,
@@ -54,7 +69,7 @@ func (r *VehicleSalesRepository) UpdateSalesDetails(ctx context.Context, exec da
            updated_at = CURRENT_TIMESTAMP
        WHERE vehicle_id = $1
    `
-	_, err := exec.ExecContext(ctx, query, vehicleID, req.CustomerID, req.SoldDate, req.Revenue, req.Profit,
+	_, err = exec.ExecContext(ctx, query, vehicleID, req.CustomerID, req.SoldDate, req.Revenue, profit,
 		req.SaleRemarks, req.SaleStatus)
 	return err
 }

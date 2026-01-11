@@ -100,6 +100,19 @@ func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context
 
 	_, err = exec.ExecContext(ctx, query, vehicleID, request.ChargesLKR, request.TTLKR, request.DutyLKR,
 		request.ClearingLKR, request.OtherExpensesLKR, totalCost)
+	if err != nil {
+		return err
+	}
+
+	// Update profit in vehicle_sales if revenue exists
+	// profit = revenue - total_cost
+	updateProfitQuery := `
+		UPDATE cars.vehicle_sales
+		SET profit = revenue - $2,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE vehicle_id = $1 AND revenue IS NOT NULL
+	`
+	_, err = exec.ExecContext(ctx, updateProfitQuery, vehicleID, totalCost)
 	return err
 
 }
