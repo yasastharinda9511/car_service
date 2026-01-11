@@ -131,7 +131,7 @@ func (s *VehicleRepository) buildVehicleQuery(userPermissions []string) string {
 			COALESCE(vf.charges_lkr, 0) AS charges_lkr,
 			COALESCE(vf.duty_lkr, 0) AS duty_lkr,
 			COALESCE(vf.clearing_lkr, 0) AS clearing_lkr,
-			COALESCE(vf.other_expenses_lkr, 0) AS other_expenses_lkr`
+			COALESCE(vf.other_expenses_lkr, '{}'::jsonb) AS other_expenses_lkr`
 	}
 
 	// Conditionally add sales details
