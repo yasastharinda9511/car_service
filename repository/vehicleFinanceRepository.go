@@ -45,10 +45,10 @@ func (r *VehicleFinancialsRepository) GetByVehicleID(ctx context.Context, exec d
 
 func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context, exec database.Executor, vehicleID int64, request *request.FinancialDetailsRequest) error {
 
-	// First, get the LC cost from vehicle_purchases
-	var lcCostJPY float64
-	lcQuery := `SELECT COALESCE(lc_cost_jpy, 0) FROM cars.vehicle_purchases WHERE vehicle_id = $1`
-	err := exec.QueryRowContext(ctx, lcQuery, vehicleID).Scan(&lcCostJPY)
+	// First, get the LC cost and exchange rate from vehicle_purchases
+	var lcCostJPY, exchangeRate float64
+	lcQuery := `SELECT COALESCE(lc_cost_jpy, 0), COALESCE(exchange_rate, 0) FROM cars.vehicle_purchases WHERE vehicle_id = $1`
+	err := exec.QueryRowContext(ctx, lcQuery, vehicleID).Scan(&lcCostJPY, &exchangeRate)
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
@@ -66,7 +66,10 @@ func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context
 		}
 	}
 
-	// Calculate total cost: charges + tt + duty + clearing + other_expenses + lc_cost
+	// Calculate LC cost in LKR using exchange rate
+	lcCostLKR := lcCostJPY * exchangeRate
+
+	// Calculate total cost: charges + tt + duty + clearing + other_expenses + (lc_cost_jpy * exchange_rate)
 	totalCost := 0.0
 	if request.ChargesLKR != nil {
 		totalCost += *request.ChargesLKR
@@ -81,7 +84,7 @@ func (r *VehicleFinancialsRepository) UpdateFinancialDetails(ctx context.Context
 		totalCost += *request.ClearingLKR
 	}
 	totalCost += otherExpensesTotal
-	totalCost += lcCostJPY
+	totalCost += lcCostLKR
 
 	query := `
        UPDATE cars.vehicle_financials

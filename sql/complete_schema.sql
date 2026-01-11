@@ -163,6 +163,7 @@ CREATE TABLE cars.vehicle_purchases (
     lc_bank VARCHAR(100),
     lc_number VARCHAR(50),
     lc_cost_jpy DECIMAL(15,2),
+    exchange_rate DECIMAL(10,4),
     purchase_date TIMESTAMP,
     purchase_status cars.purchase_status_enum DEFAULT 'LC_PENDING',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

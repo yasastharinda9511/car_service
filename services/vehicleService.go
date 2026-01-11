@@ -421,8 +421,8 @@ func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, pu
 		return err
 	}
 
-	// If LC cost was provided, recalculate the financial total
-	if purchaseRequest.LCCostJPY != nil {
+	// If LC cost or exchange rate was provided, recalculate the financial total
+	if purchaseRequest.LCCostJPY != nil || purchaseRequest.ExchangeRate != nil {
 		// Get current financial details
 		financial, err := s.vehicleFinancialsRepository.GetByVehicleID(ctx, s.db, id)
 		if err == nil && financial != nil {
@@ -434,7 +434,7 @@ func (s *VehicleService) UpdatePurchaseDetails(ctx context.Context, id int64, pu
 				ClearingLKR:      financial.ClearingLKR,
 				OtherExpensesLKR: financial.OtherExpensesLKR,
 			}
-			// This will recalculate total_cost_lkr including the new LC cost
+			// This will recalculate total_cost_lkr including the new LC cost with exchange rate
 			_ = s.vehicleFinancialsRepository.UpdateFinancialDetails(ctx, s.db, id, financialUpdate)
 		}
 	}
