@@ -71,7 +71,7 @@ func (r *VehicleFinancialsRepository) GetDetailedFinancialSummary(ctx context.Co
         COALESCE(SUM((
             SELECT SUM((value#>>'{}')::numeric)
             FROM jsonb_each(COALESCE(other_expenses_lkr, '{}'::jsonb))
-        )), 0) as total_other_expenses,
+        )), 0::numeric) as total_other_expenses,
         COALESCE(SUM(total_cost_lkr), 0) as total_investment
     FROM cars.vehicle_financials vf`
 
