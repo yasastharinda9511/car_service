@@ -28,14 +28,14 @@ func (r *VehicleFinancialsRepository) InsertDefault(ctx context.Context, exec da
 func (r *VehicleFinancialsRepository) GetByVehicleID(ctx context.Context, exec database.Executor, vehicleID int64) (*entity.VehicleFinancials, error) {
 	query := `
         SELECT id, vehicle_id, total_cost_lkr, charges_lkr,
-        duty_lkr, clearing_lkr, other_expenses_lkr
+        duty_lkr, clearing_lkr, other_expenses_lkr, tt_lkr
         FROM cars.vehicle_financials
         WHERE vehicle_id = $1
     `
 	var vf entity.VehicleFinancials
 	err := exec.QueryRowContext(ctx, query, vehicleID).Scan(
 		&vf.ID, &vf.VehicleID, &vf.TotalCostLKR, &vf.ChargesLKR,
-		&vf.DutyLKR, &vf.ClearingLKR, &vf.OtherExpensesLKR,
+		&vf.DutyLKR, &vf.ClearingLKR, &vf.OtherExpensesLKR, &vf.TTLKR,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
