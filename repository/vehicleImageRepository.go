@@ -4,6 +4,7 @@ import (
 	"car_service/database"
 	"car_service/entity"
 	"context"
+	"fmt"
 )
 
 type VehicleImageRepository struct {
@@ -64,4 +65,40 @@ func (s *VehicleImageRepository) GetByVehicleID(ctx context.Context, exec databa
 		images = append(images, img)
 	}
 	return images, nil
+}
+
+// SetPrimaryImage sets a specific image as primary and unsets all others for the same vehicle
+func (s *VehicleImageRepository) SetPrimaryImage(ctx context.Context, exec database.Executor, imageID int, vehicleID int64) error {
+	// First, unset all primary images for this vehicle
+	unsetQuery := `
+		UPDATE cars.vehicle_images
+		SET is_primary = false
+		WHERE vehicle_id = $1
+	`
+	_, err := exec.ExecContext(ctx, unsetQuery, vehicleID)
+	if err != nil {
+		return err
+	}
+
+	// Then set the specified image as primary
+	setPrimaryQuery := `
+		UPDATE cars.vehicle_images
+		SET is_primary = true
+		WHERE id = $1 AND vehicle_id = $2
+	`
+	result, err := exec.ExecContext(ctx, setPrimaryQuery, imageID, vehicleID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("image with id %d not found for vehicle %d", imageID, vehicleID)
+	}
+
+	return nil
 }

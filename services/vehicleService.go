@@ -206,6 +206,31 @@ func (s *VehicleService) InsertVehicleImage(ctx context.Context, vehicleImage []
 	return vehicleImages, nil
 }
 
+// SetPrimaryImage sets a specific image as the primary image for a vehicle
+func (s *VehicleService) SetPrimaryImage(ctx context.Context, imageID int, vehicleID int64) error {
+	logger.WithFields(map[string]interface{}{
+		"image_id":   imageID,
+		"vehicle_id": vehicleID,
+	}).Info("Setting primary image for vehicle")
+
+	err := s.vehicleIMageRepository.SetPrimaryImage(ctx, s.db, imageID, vehicleID)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"image_id":   imageID,
+			"vehicle_id": vehicleID,
+			"error":      err.Error(),
+		}).Error("Failed to set primary image")
+		return err
+	}
+
+	logger.WithFields(map[string]interface{}{
+		"image_id":   imageID,
+		"vehicle_id": vehicleID,
+	}).Info("Primary image set successfully")
+
+	return nil
+}
+
 func (s *VehicleService) CreateVehicle(ctx context.Context, req request.CreateVehicleRequest, authHeader string) (*entity.Vehicle, error) {
 	logger.WithFields(map[string]interface{}{
 		"code":  req.Code,

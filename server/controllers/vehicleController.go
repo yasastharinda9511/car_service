@@ -60,6 +60,7 @@ func (vc *VehicleController) SetupRoutes() {
 	vehicles.Handle("", authMiddleware.Authorize(http.HandlerFunc(vc.createVehicle), constants.VEHICLE_CREATE)).Methods("POST")
 	vehicles.Handle("/download-image/{id}/{filename}", authMiddleware.Authorize(http.HandlerFunc(vc.serveImageHandler), constants.VEHICLE_ACCESS)).Methods("GET")
 	vehicles.Handle("/upload-image/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadImageHandler), constants.VEHICLE_CREATE)).Methods("POST")
+	vehicles.Handle("/{id}/images/{imageId}/set-primary", authMiddleware.Authorize(http.HandlerFunc(vc.setPrimaryImageHandler), constants.VEHICLE_EDIT)).Methods("PUT")
 
 	vehicles.Handle("/{id}/shipping", authMiddleware.Authorize(http.HandlerFunc(vc.updateShipping), constants.SHIPPING_EDIT)).Methods("PUT")
 	vehicles.Handle("/{id}/purchase", authMiddleware.Authorize(http.HandlerFunc(vc.updatePurchase), constants.PURCHASE_EDIT)).Methods("PUT")
@@ -492,6 +493,31 @@ func (vc *VehicleController) serveImageHandler(w http.ResponseWriter, r *http.Re
 			"data": presignedURL,
 		})
 	}
+}
+
+func (vc *VehicleController) setPrimaryImageHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	vehicleID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid vehicle ID")
+		return
+	}
+
+	imageID, err := strconv.Atoi(vars["imageId"])
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid image ID")
+		return
+	}
+
+	err = vc.vehicleService.SetPrimaryImage(r.Context(), imageID, vehicleID)
+	if err != nil {
+		vc.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "Primary image set successfully",
+	})
 }
 
 func (vc *VehicleController) uploadDocumentHandler(w http.ResponseWriter, r *http.Request) {
