@@ -90,6 +90,7 @@ func (vc *VehicleController) SetupRoutes() {
 	// Document management routes
 	vehicles.Handle("/upload-document/{id}", authMiddleware.Authorize(http.HandlerFunc(vc.uploadDocumentHandler), constants.VEHICLE_CREATE)).Methods("POST")
 	vehicles.Handle("/download-document/{document_id}", authMiddleware.Authorize(http.HandlerFunc(vc.serveDocumentHandler), constants.VEHICLE_ACCESS)).Methods("GET")
+	vehicles.Handle("/document/{document_id}", authMiddleware.Authorize(http.HandlerFunc(vc.deleteDocumentHandler), constants.VEHICLE_EDIT)).Methods("DELETE")
 
 	// Featured vehicles routes
 	vehicles.Handle("/featured", authMiddleware.Authorize(http.HandlerFunc(vc.getFeaturedVehicles), constants.VEHICLE_ACCESS)).Methods("GET")
@@ -673,6 +674,29 @@ func (vc *VehicleController) serveDocumentHandler(w http.ResponseWriter, r *http
 			},
 		})
 	}
+}
+
+func (vc *VehicleController) deleteDocumentHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	documentID, err := strconv.ParseInt(vars["document_id"], 10, 64)
+	if err != nil {
+		vc.writeError(w, http.StatusBadRequest, "Invalid document ID")
+		return
+	}
+
+	err = vc.vehicleService.DeleteVehicleDocument(r.Context(), documentID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			vc.writeError(w, http.StatusNotFound, "Document not found")
+			return
+		}
+		vc.writeError(w, http.StatusInternalServerError, "Failed to delete document")
+		return
+	}
+
+	vc.writeJSON(w, http.StatusOK, map[string]string{
+		"message": "Document deleted successfully",
+	})
 }
 
 func (vc *VehicleController) deleteVehicle(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,7 @@ import (
 	"car_service/database"
 	"car_service/entity"
 	"context"
+	"database/sql"
 )
 
 type VehicleDocumentRepository struct {
@@ -82,4 +83,24 @@ func (r *VehicleDocumentRepository) GetByID(ctx context.Context, exec database.E
 	}
 
 	return &doc, nil
+}
+
+func (r *VehicleDocumentRepository) DeleteByID(ctx context.Context, exec database.Executor, id int64) error {
+	query := `DELETE FROM cars.vehicle_documents WHERE id = $1`
+
+	result, err := exec.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }

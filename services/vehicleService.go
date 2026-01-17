@@ -614,6 +614,49 @@ func (s *VehicleService) GetVehicleDocumentByID(ctx context.Context, id int64) (
 	return s.vehicleDocumentRepository.GetByID(ctx, s.db, id)
 }
 
+// DeleteVehicleDocument deletes a document from S3 and the database
+func (s *VehicleService) DeleteVehicleDocument(ctx context.Context, documentID int64) error {
+	logger.WithField("document_id", documentID).Info("Deleting vehicle document")
+
+	// Get document to retrieve the S3 key
+	document, err := s.vehicleDocumentRepository.GetByID(ctx, s.db, documentID)
+	if err != nil {
+		logger.WithFields(map[string]interface{}{
+			"document_id": documentID,
+			"error":       err.Error(),
+		}).Error("Failed to fetch document before deletion")
+		return err
+	}
+
+	// Delete from S3 if S3Service is available and file_path exists
+	if s.S3Service != nil && document.FilePath != "" {
+		if err := s.S3Service.DeleteFile(ctx, document.FilePath); err != nil {
+			logger.WithFields(map[string]interface{}{
+				"document_id": documentID,
+				"file_path":   document.FilePath,
+				"error":       err.Error(),
+			}).Error("Failed to delete document from S3")
+			return fmt.Errorf("failed to delete document from S3: %w", err)
+		}
+	}
+
+	// Delete from database
+	if err := s.vehicleDocumentRepository.DeleteByID(ctx, s.db, documentID); err != nil {
+		logger.WithFields(map[string]interface{}{
+			"document_id": documentID,
+			"error":       err.Error(),
+		}).Error("Failed to delete document from database")
+		return err
+	}
+
+	logger.WithFields(map[string]interface{}{
+		"document_id":   documentID,
+		"document_name": document.DocumentName,
+	}).Info("Vehicle document deleted successfully")
+
+	return nil
+}
+
 // DeleteVehicle deletes a vehicle by ID
 func (s *VehicleService) DeleteVehicle(ctx context.Context, vehicleID int64, authHeader string) error {
 	logger.WithField("vehicle_id", vehicleID).Info("Deleting vehicle")
